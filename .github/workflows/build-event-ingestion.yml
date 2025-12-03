@@ -15,6 +15,11 @@ on:
     paths:
       - 'services/event-ingestion-service/**'
 
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: event-ingestion-service
