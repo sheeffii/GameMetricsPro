@@ -194,11 +194,21 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          # Wait for pods to be ready
-          kubectl wait --for=condition=ready pod -l app=${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
+          # Wait for deployment rollout to complete
+          kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
           
-          # Get current pod (refresh after rollout)
-          POD=$(kubectl get pod -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} -o jsonpath='{.items[0].metadata.name}')
+          # Get all running pods (exclude terminating)
+          PODS=($(kubectl get pod -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} --field-selector=status.phase=Running -o jsonpath='{.items[*].metadata.name}'))
+          
+          if [ ${#PODS[@]} -eq 0 ]; then
+            echo "❌ No running pods found"
+            exit 1
+          fi
+          
+          echo "Found ${#PODS[@]} running pod(s)"
+          
+          # Test first running pod
+          POD=${PODS[0]}
           echo "Testing pod: $POD"
           
           # Test health endpoints
