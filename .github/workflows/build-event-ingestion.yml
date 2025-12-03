@@ -196,25 +196,28 @@ jobs:
         run: |
           # Wait for deployment rollout to complete
           kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
-          
-          # Get all running pods (exclude terminating)
-          PODS=($(kubectl get pod -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} --field-selector=status.phase=Running -o jsonpath='{.items[*].metadata.name}'))
-          
-          if [ ${#PODS[@]} -eq 0 ]; then
+
+          # Select a running pod (exclude terminating)
+          POD=$(kubectl get pod -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$POD" ]; then
             echo "❌ No running pods found"
+            kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} -o wide
             exit 1
           fi
-          
-          echo "Found ${#PODS[@]} running pod(s)"
-          
-          # Test first running pod
-          POD=${PODS[0]}
           echo "Testing pod: $POD"
-          
-          # Test health endpoints
-          kubectl exec -n ${{ env.NAMESPACE }} $POD -- wget -q -O- http://localhost:8080/health/live
-          kubectl exec -n ${{ env.NAMESPACE }} $POD -- wget -q -O- http://localhost:8080/health/ready
-          
+
+          # Port-forward pod 8080 -> runner 8080
+          kubectl port-forward -n ${{ env.NAMESPACE }} pod/$POD 8080:8080 &
+          PF_PID=$!
+          # Give port-forward time to establish
+          sleep 5
+
+          # Test health endpoints from runner using curl
+          curl -fsS http://localhost:8080/health/live
+          curl -fsS http://localhost:8080/health/ready
+
+          # Cleanup port-forward
+          kill $PF_PID || true
           echo "✅ Health checks passed"
 
       - name: Notify deployment success
