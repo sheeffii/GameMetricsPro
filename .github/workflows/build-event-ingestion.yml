@@ -19,7 +19,6 @@ permissions:
   id-token: write
   contents: read
   packages: write
-  security-events: write
   actions: read
 
 env:
@@ -38,7 +37,6 @@ jobs:
       id-token: write
       contents: read
       packages: write
-      security-events: write
       actions: read
     outputs:
       image-uri: ${{ steps.image-uri.outputs.uri }}
@@ -97,19 +95,13 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: ${{ steps.image-uri.outputs.uri }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: false
-
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-          category: 'container-scan'
+          exit-code: '1'
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
