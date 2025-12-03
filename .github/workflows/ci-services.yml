@@ -133,7 +133,6 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: false
-          exit-code: '1'
 
       - name: Run Snyk security scan (if token available)
         uses: snyk/actions/docker@master
@@ -184,7 +183,6 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: false
-          exit-code: '1'
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3

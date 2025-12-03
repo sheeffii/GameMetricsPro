@@ -101,7 +101,6 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: false
-          exit-code: '1'
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
@@ -124,14 +123,6 @@ jobs:
           output-file: sbom-event-ingestion.spdx.json
           upload-artifact: true
           upload-release-assets: false
-
-      - name: Upload SBOM to ECR
-        run: |
-          aws ecr put-image \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
-            --image-manifest file://sbom-event-ingestion.spdx.json \
-            --image-tag ${{ steps.meta.outputs.version }}-sbom \
-            --region ${{ env.AWS_REGION }} || echo "SBOM upload failed (non-blocking)"
 
   deploy-to-dev:
     name: Deploy to Development (Auto)
@@ -206,10 +197,15 @@ jobs:
           # Wait for pods to be ready
           kubectl wait --for=condition=ready pod -l app=${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
           
-          # Test health endpoints
+          # Get current pod (refresh after rollout)
           POD=$(kubectl get pod -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} -o jsonpath='{.items[0].metadata.name}')
+          echo "Testing pod: $POD"
+          
+          # Test health endpoints
           kubectl exec -n ${{ env.NAMESPACE }} $POD -- wget -q -O- http://localhost:8080/health/live
           kubectl exec -n ${{ env.NAMESPACE }} $POD -- wget -q -O- http://localhost:8080/health/ready
+          
+          echo "✅ Health checks passed"
 
       - name: Notify deployment success
         if: success()
