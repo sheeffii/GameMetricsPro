@@ -19,14 +19,16 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: event-ingestion-service
   EKS_CLUSTER_NAME: gamemetrics-dev
-  SERVICE_NAME: event-ingestion
+  DEPLOYMENT_NAME: event-ingestion
+  CONTAINER_NAME: event-ingestion
+  NAMESPACE: gamemetrics
 
 jobs:
   build-and-push:
     name: Build Docker Image and Push to ECR
     runs-on: ubuntu-latest
     outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
+      image-uri: ${{ steps.image-uri.outputs.uri }}
       image-digest: ${{ steps.build.outputs.digest }}
     
     steps:
@@ -70,6 +72,13 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
+      - name: Set image URI output
+        id: image-uri
+        run: |
+          IMAGE_TAG="$(echo "${{ steps.meta.outputs.tags }}" | head -n1)"
+          echo "uri=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Image URI: ${IMAGE_TAG}"
+
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
         with:
@@ -101,16 +110,18 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl set image deployment/${{ env.SERVICE_NAME }} \
-            ${{ env.SERVICE_NAME }}=${{ needs.build-and-push.outputs.image-tag }} \
-            -n gamemetrics
+          echo "Deploying image: ${{ needs.build-and-push.outputs.image-uri }}"
+          kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
+            ${{ env.CONTAINER_NAME }}=${{ needs.build-and-push.outputs.image-uri }} \
+            -n ${{ env.NAMESPACE }}
           
-          kubectl rollout status deployment/${{ env.SERVICE_NAME }} -n gamemetrics --timeout=5m
+          kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
 
       - name: Verify deployment
         run: |
-          kubectl get pods -n gamemetrics -l app=${{ env.SERVICE_NAME }}
-          kubectl logs -n gamemetrics -l app=${{ env.SERVICE_NAME }} --tail=50
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }}
+          kubectl describe deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
+          kubectl logs -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} --tail=50
 
   deploy-to-prod:
     name: Deploy to Production (Manual Approval)
@@ -136,32 +147,33 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl set image deployment/${{ env.SERVICE_NAME }} \
-            ${{ env.SERVICE_NAME }}=${{ needs.build-and-push.outputs.image-tag }} \
-            -n gamemetrics
+          echo "Deploying image: ${{ needs.build-and-push.outputs.image-uri }}"
+          kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
+            ${{ env.CONTAINER_NAME }}=${{ needs.build-and-push.outputs.image-uri }} \
+            -n ${{ env.NAMESPACE }}
           
-          kubectl rollout status deployment/${{ env.SERVICE_NAME }} -n gamemetrics --timeout=10m
+          kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=10m
 
       - name: Run smoke tests
         run: |
           # Wait for pods to be ready
-          kubectl wait --for=condition=ready pod -l app=${{ env.SERVICE_NAME }} -n gamemetrics --timeout=5m
+          kubectl wait --for=condition=ready pod -l app=${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
           
           # Test health endpoints
-          POD=$(kubectl get pod -n gamemetrics -l app=${{ env.SERVICE_NAME }} -o jsonpath='{.items[0].metadata.name}')
-          kubectl exec -n gamemetrics $POD -- wget -q -O- http://localhost:8080/health/live
-          kubectl exec -n gamemetrics $POD -- wget -q -O- http://localhost:8080/health/ready
+          POD=$(kubectl get pod -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n ${{ env.NAMESPACE }} $POD -- wget -q -O- http://localhost:8080/health/live
+          kubectl exec -n ${{ env.NAMESPACE }} $POD -- wget -q -O- http://localhost:8080/health/ready
 
       - name: Notify deployment success
         if: success()
         run: |
           echo "✅ Deployment to production successful!"
-          echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
+          echo "Image: ${{ needs.build-and-push.outputs.image-uri }}"
           echo "Digest: ${{ needs.build-and-push.outputs.image-digest }}"
 
       - name: Rollback on failure
         if: failure()
         run: |
           echo "❌ Deployment failed! Rolling back..."
-          kubectl rollout undo deployment/${{ env.SERVICE_NAME }} -n gamemetrics
-          kubectl rollout status deployment/${{ env.SERVICE_NAME }} -n gamemetrics --timeout=5m
+          kubectl rollout undo deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m

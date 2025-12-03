@@ -1,15 +1,19 @@
-name: CI - Build and Test Services
+# This workflow is currently disabled in favor of build-event-ingestion.yml
+# To enable, change this to: name: CI - Build and Test Services
+name: CI - Build and Test Services (Disabled)
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'services/**'
-      - '.github/workflows/ci-services.yml'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'services/**'
+  workflow_dispatch: # Manual trigger only
+  # Uncomment below to enable automatic triggers
+  # push:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - 'services/**'
+  #     - '.github/workflows/ci-services.yml'
+  # pull_request:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - 'services/**'
 
 env:
   AWS_REGION: us-east-1
@@ -247,21 +251,3 @@ jobs:
           cd tests/integration
           npm install
           npm test
-
-  notify:
-    name: Notify Build Status
-    needs: [build-and-test, integration-tests]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Slack Notification
-        uses: 8398a7/action-slack@v3
-        if: always()
-        with:
-          status: ${{ job.status }}
-          text: |
-            CI Pipeline: ${{ job.status }}
-            Commit: ${{ github.sha }}
-            Author: ${{ github.actor }}
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

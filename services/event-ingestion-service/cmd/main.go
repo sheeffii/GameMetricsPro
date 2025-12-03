@@ -25,9 +25,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"golang.org/x/time/rate"
-	
-	// Swagger docs
-	_ "embed"
 )
 
 var (
@@ -50,9 +47,6 @@ var (
 		Buckets: prometheus.DefBuckets,
 	})
 )
-
-//go:embed ../api/openapi.json
-var openapiSpec []byte
 
 type Event struct {
 	EventType string                 `json:"event_type" binding:"required"`
@@ -327,7 +321,69 @@ func (s *Server) swaggerRedirect(c *gin.Context) {
 }
 
 func (s *Server) swaggerSpec(c *gin.Context) {
-	c.Data(http.StatusOK, "application/json", openapiSpec)
+	// Serve OpenAPI spec inline (no file dependency)
+	spec := map[string]interface{}{
+		"openapi": "3.0.3",
+		"info": map[string]interface{}{
+			"title":       "GameMetrics Event Ingestion API",
+			"description": "Real-time event ingestion service for gaming analytics",
+			"version":     "1.0.0",
+		},
+		"servers": []map[string]string{
+			{"url": "http://localhost:8080", "description": "Local"},
+		},
+		"paths": map[string]interface{}{
+			"/api/v1/events": map[string]interface{}{
+				"post": map[string]interface{}{
+					"summary": "Ingest Player Event",
+					"tags":    []string{"Events"},
+					"requestBody": map[string]interface{}{
+						"required": true,
+						"content": map[string]interface{}{
+							"application/json": map[string]interface{}{
+								"schema": map[string]interface{}{
+									"$ref": "#/components/schemas/Event",
+								},
+							},
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Event successfully ingested",
+						},
+					},
+				},
+			},
+			"/health/live": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Liveness Probe",
+					"tags":    []string{"Health"},
+				},
+			},
+			"/health/ready": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Readiness Probe",
+					"tags":    []string{"Health"},
+				},
+			},
+		},
+		"components": map[string]interface{}{
+			"schemas": map[string]interface{}{
+				"Event": map[string]interface{}{
+					"type": "object",
+					"required": []string{"player_id", "game_id", "event_type", "timestamp"},
+					"properties": map[string]interface{}{
+						"player_id":  map[string]string{"type": "string"},
+						"game_id":    map[string]string{"type": "string"},
+						"event_type": map[string]string{"type": "string"},
+						"timestamp":  map[string]string{"type": "string", "format": "date-time"},
+						"data":       map[string]string{"type": "object"},
+					},
+				},
+			},
+		},
+	}
+	c.JSON(http.StatusOK, spec)
 }
 
 func (s *Server) swaggerUI(c *gin.Context) {
