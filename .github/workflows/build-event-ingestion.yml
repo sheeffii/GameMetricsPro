@@ -88,12 +88,12 @@ jobs:
           echo "uri=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Image URI: ${IMAGE_TAG}"
 
-      - name: Generate artifact attestation
+      - name: Generate SLSA Provenance Attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          # Let it auto-detect the image you just pushed
           push-to-registry: true
+          persist-to-github: false
 
   deploy-to-dev:
     name: Deploy to Development (Auto)
