@@ -91,9 +91,9 @@ jobs:
       - name: Generate SLSA Provenance Attestation
         uses: actions/attest-build-provenance@v2
         with:
-          # Let it auto-detect the image you just pushed
+          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
-          persist-to-github: false
 
   deploy-to-dev:
     name: Deploy to Development (Auto)
