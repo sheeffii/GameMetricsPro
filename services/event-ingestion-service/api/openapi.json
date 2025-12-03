@@ -1,0 +1,324 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "GameMetrics Event Ingestion API",
+    "description": "Real-time event ingestion service for gaming analytics. Receives player events from game clients and publishes them to Kafka for processing.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "GameMetrics Team",
+      "email": "support@gamemetrics.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development"
+    },
+    {
+      "url": "https://api.gamemetrics.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/v1/events": {
+      "post": {
+        "summary": "Ingest Player Event",
+        "description": "Submit a player event to be processed by the analytics pipeline. Events are validated, enriched with metadata, and published to Kafka.",
+        "tags": ["Events"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Event"
+              },
+              "examples": {
+                "login": {
+                  "summary": "Player Login Event",
+                  "value": {
+                    "player_id": "player-123",
+                    "game_id": "game-realtime-001",
+                    "event_type": "login",
+                    "timestamp": "2025-12-03T14:30:00Z",
+                    "data": {
+                      "platform": "mobile",
+                      "device": "iPhone 15",
+                      "country": "US"
+                    }
+                  }
+                },
+                "level_up": {
+                  "summary": "Level Up Event",
+                  "value": {
+                    "player_id": "player-456",
+                    "game_id": "game-realtime-001",
+                    "event_type": "level_up",
+                    "timestamp": "2025-12-03T14:35:00Z",
+                    "data": {
+                      "level": 42,
+                      "experience": 125000,
+                      "time_played_seconds": 3600
+                    }
+                  }
+                },
+                "purchase": {
+                  "summary": "In-App Purchase Event",
+                  "value": {
+                    "player_id": "player-789",
+                    "game_id": "game-realtime-001",
+                    "event_type": "purchase",
+                    "timestamp": "2025-12-03T14:40:00Z",
+                    "data": {
+                      "item_id": "sword-legendary-001",
+                      "price_usd": 9.99,
+                      "currency": "USD",
+                      "payment_method": "credit_card"
+                    }
+                  }
+                },
+                "game_session": {
+                  "summary": "Game Session End",
+                  "value": {
+                    "player_id": "player-321",
+                    "game_id": "game-realtime-001",
+                    "event_type": "game_end",
+                    "timestamp": "2025-12-03T14:45:00Z",
+                    "data": {
+                      "session_duration_seconds": 1800,
+                      "score": 98500,
+                      "deaths": 3,
+                      "kills": 15
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event successfully ingested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "event_id": "3968747f-9826-4a6b-8d3e-da94a1c8e5b1"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Key: 'Event.EventType' Error:Field validation for 'EventType' failed on the 'required' tag"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "rate limit exceeded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "failed to publish event"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "summary": "Liveness Probe",
+        "description": "Check if the service is alive. Used by Kubernetes for liveness probes.",
+        "tags": ["Health"],
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "alive"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Readiness Probe",
+        "description": "Check if the service is ready to accept traffic. Validates Kafka connection.",
+        "tags": ["Health"],
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ready"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus Metrics",
+        "description": "Exposes Prometheus metrics for monitoring and alerting",
+        "tags": ["Monitoring"],
+        "responses": {
+          "200": {
+            "description": "Prometheus metrics in text format",
+            "content": {
+              "text/plain": {
+                "example": "# HELP events_published_total Total number of events published to Kafka\n# TYPE events_published_total counter\nevents_published_total 12345\n"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Event": {
+        "type": "object",
+        "required": ["player_id", "game_id", "event_type", "timestamp"],
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "description": "Unique identifier for the player",
+            "example": "player-123"
+          },
+          "game_id": {
+            "type": "string",
+            "description": "Unique identifier for the game",
+            "example": "game-realtime-001"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Type of event (login, logout, level_up, purchase, etc.)",
+            "example": "level_up",
+            "enum": [
+              "login",
+              "logout",
+              "level_up",
+              "purchase",
+              "achievement",
+              "game_start",
+              "game_end",
+              "user_action"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the event occurred",
+            "example": "2025-12-03T14:30:00Z"
+          },
+          "data": {
+            "type": "object",
+            "description": "Additional event-specific data (schema varies by event_type)",
+            "additionalProperties": true,
+            "example": {
+              "level": 42,
+              "score": 9999,
+              "session_id": "session-123"
+            }
+          }
+        }
+      },
+      "EventResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status of the operation",
+            "example": "success"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier assigned to the event",
+            "example": "3968747f-9826-4a6b-8d3e-da94a1c8e5b1"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong",
+            "example": "failed to publish event"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Events",
+      "description": "Event ingestion endpoints"
+    },
+    {
+      "name": "Health",
+      "description": "Health check endpoints for monitoring"
+    },
+    {
+      "name": "Monitoring",
+      "description": "Observability and metrics endpoints"
+    }
+  ]
+}

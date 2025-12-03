@@ -1,0 +1,85 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: player.events.raw
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    compression.type: lz4
+    min.insync.replicas: 1
+    segment.bytes: 1073741824
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: player.events.processed
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 2592000000
+    cleanup.policy: compact
+    compression.type: lz4
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: recommendations.generated
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+spec:
+  partitions: 2
+  replicas: 1
+  config:
+    retention.ms: 86400000
+    compression.type: lz4
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: user.actions
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    compression.type: lz4
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: notifications
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+spec:
+  partitions: 2
+  replicas: 1
+  config:
+    retention.ms: 259200000
+    compression.type: lz4
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dlq.events
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+spec:
+  partitions: 2
+  replicas: 1
+  config:
+    retention.ms: 2592000000
+    compression.type: lz4
+    min.insync.replicas: 1

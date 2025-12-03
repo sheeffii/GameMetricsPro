@@ -1,0 +1,248 @@
+groups:
+  - name: kafka_alerts
+    interval: 30s
+    rules:
+      # Kafka Broker Availability
+      - alert: KafkaBrokerDown
+        expr: kafka_brokers < 3
+        for: 1m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "Kafka broker is down"
+          description: "Kafka cluster has {{ $value }} brokers (expected 3)"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/kafka-broker-down.md"
+
+      # Under-replicated Partitions
+      - alert: KafkaUnderReplicatedPartitions
+        expr: kafka_server_replicamanager_underreplicatedpartitions > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "Kafka has under-replicated partitions"
+          description: "{{ $value }} partitions are under-replicated"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/kafka-under-replicated.md"
+
+      # Offline Partitions
+      - alert: KafkaOfflinePartitions
+        expr: kafka_controller_kafkacontroller_offlinepartitionscount > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "Kafka has offline partitions"
+          description: "{{ $value }} partitions are offline"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/kafka-offline-partitions.md"
+
+      # Consumer Lag Warning
+      - alert: KafkaConsumerLagHigh
+        expr: kafka_consumergroup_lag > 10000
+        for: 5m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "High consumer lag detected"
+          description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} messages"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/kafka-consumer-lag.md"
+
+      # Consumer Lag Critical
+      - alert: KafkaConsumerLagCritical
+        expr: kafka_consumergroup_lag > 50000
+        for: 2m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "Critical consumer lag detected"
+          description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} messages"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/kafka-consumer-lag.md"
+
+      # ISR Shrinks
+      - alert: KafkaISRShrink
+        expr: rate(kafka_server_replicamanager_isrshrinkspersec_count[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "Kafka ISR is shrinking"
+          description: "In-Sync Replica set is shrinking at {{ $value }} per second"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "High error rate detected"
+          description: "Service {{ $labels.service }} has error rate of {{ $value | humanizePercentage }}"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/high-error-rate.md"
+
+      # Critical Error Rate
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Service {{ $labels.service }} has error rate of {{ $value | humanizePercentage }}"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/high-error-rate.md"
+
+      # High Latency
+      - alert: HighLatency
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "High request latency detected"
+          description: "Service {{ $labels.service }} P99 latency is {{ $value }}s"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/high-latency.md"
+
+      # Pod Restart
+      - alert: PodRestartingTooOften
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Pod is restarting frequently"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/pod-restart.md"
+
+      # Pod Not Ready
+      - alert: PodNotReady
+        expr: kube_pod_status_phase{phase!~"Running|Succeeded"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Pod is not ready"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is in phase {{ $labels.phase }}"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "High memory usage detected"
+          description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) / container_spec_cpu_quota * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "High CPU usage detected"
+          description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} is using {{ $value }}% CPU"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database {{ $labels.datname }} is using {{ $value | humanizePercentage }} of available connections"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/db-connections.md"
+
+      # Database Replication Lag
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database replication lag is high"
+          description: "Replication lag is {{ $value }}s for replica {{ $labels.application_name }}"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/db-replication-lag.md"
+
+      # Redis Memory Usage
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis instance {{ $labels.instance }} is using {{ $value | humanizePercentage }} of available memory"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/redis-memory.md"
+
+      # Redis Down
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance {{ $labels.instance }} is unreachable"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/redis-down.md"
+
+  - name: node_alerts
+    interval: 30s
+    rules:
+      # Node Disk Space
+      - alert: NodeDiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          component: node
+        annotations:
+          summary: "Node disk space is low"
+          description: "Node {{ $labels.instance }} has {{ $value | humanizePercentage }} disk space available on {{ $labels.mountpoint }}"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/node-disk-space.md"
+
+      # Node Memory Pressure
+      - alert: NodeMemoryPressure
+        expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+        for: 2m
+        labels:
+          severity: warning
+          component: node
+        annotations:
+          summary: "Node is under memory pressure"
+          description: "Node {{ $labels.node }} is experiencing memory pressure"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/node-memory-pressure.md"
+
+      # Node Not Ready
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: node
+        annotations:
+          summary: "Node is not ready"
+          description: "Node {{ $labels.node }} is not ready"
+          runbook_url: "https://github.com/YOUR_ORG/RealtimeGaming/docs/runbooks/node-not-ready.md"

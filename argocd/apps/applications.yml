@@ -1,0 +1,83 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-ingestion-service
+  namespace: argocd
+spec:
+  project: gamemetrics
+  source:
+    repoURL: https://github.com/<YOUR_ORG>/RealtimeGaming.git
+    targetRevision: HEAD
+    path: k8s/services
+    directory:
+      include: 'event-ingestion-service.yml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-cluster
+  namespace: argocd
+spec:
+  project: gamemetrics
+  source:
+    repoURL: https://github.com/<YOUR_ORG>/RealtimeGaming.git
+    targetRevision: HEAD
+    path: k8s/kafka
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-prune Kafka resources
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-stack
+  namespace: argocd
+spec:
+  project: gamemetrics
+  source:
+    repoURL: https://github.com/<YOUR_ORG>/RealtimeGaming.git
+    targetRevision: HEAD
+    path: monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

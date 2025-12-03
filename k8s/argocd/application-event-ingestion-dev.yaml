@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-ingestion-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: gamemetrics
+  
+  # Source: Git repository
+  source:
+    repoURL: https://github.com/YOUR-USERNAME/RealtimeGaming.git
+    targetRevision: develop  # Track develop branch for dev environment
+    path: k8s/apps/event-ingestion/overlays/dev
+  
+  # Destination: Target Kubernetes cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamemetrics
+  
+  # Sync policy: Automatic sync with self-healing
+  syncPolicy:
+    automated:
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Auto-sync when cluster state drifts from Git
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health check configuration
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore replica count differences (HPA controls this)
+  
+  # Notifications
+  revisionHistoryLimit: 10

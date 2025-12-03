@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: gamemetrics
+  
+  # Source: Git repository
+  source:
+    repoURL: https://github.com/YOUR-USERNAME/RealtimeGaming.git
+    targetRevision: develop
+    path: k8s/kafka/overlays/dev
+  
+  # Destination: Target Kubernetes cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  
+  # Sync policy: Automatic sync with caution
+  syncPolicy:
+    automated:
+      prune: false     # Don't auto-delete Kafka resources (data loss risk)
+      selfHeal: true   # Auto-sync config changes
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health check configuration
+  ignoreDifferences:
+    - group: kafka.strimzi.io
+      kind: Kafka
+      jsonPointers:
+        - /status  # Ignore status field updates from Strimzi operator
+  
+  revisionHistoryLimit: 10

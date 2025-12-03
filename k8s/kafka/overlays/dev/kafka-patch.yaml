@@ -1,0 +1,8 @@
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: gamemetrics-kafka
+spec:
+  kafka:
+    config:
+      log.retention.hours: 72

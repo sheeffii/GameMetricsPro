@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gamemetrics
+  namespace: argocd
+spec:
+  description: GameMetrics Pro Platform
+  
+  sourceRepos:
+    - 'https://github.com/<YOUR_ORG>/RealtimeGaming.git'
+    - 'https://charts.bitnami.com/bitnami'
+    - 'https://prometheus-community.github.io/helm-charts'
+    - 'https://grafana.github.io/helm-charts'
+    - 'https://strimzi.io/charts'
+  
+  destinations:
+    - namespace: '*'
+      server: https://kubernetes.default.svc
+  
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  roles:
+    - name: developer
+      description: Developer role with read-only access
+      policies:
+        - p, proj:gamemetrics:developer, applications, get, gamemetrics/*, allow
+        - p, proj:gamemetrics:developer, applications, sync, gamemetrics/dev-*, allow
+      groups:
+        - developers
+    
+    - name: operator
+      description: Operator role with full access
+      policies:
+        - p, proj:gamemetrics:operator, applications, *, gamemetrics/*, allow
+      groups:
+        - operators
+        - devops

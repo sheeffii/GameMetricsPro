@@ -1,0 +1,146 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: kafka-broker-failure
+  namespace: kafka
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - kafka
+    labelSelectors:
+      strimzi.io/name: gamemetrics-kafka-kafka
+  scheduler:
+    cron: '@every 24h'
+  duration: '1m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-latency-injection
+  namespace: default
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: event-ingestion-service
+  delay:
+    latency: '300ms'
+    correlation: '50'
+    jitter: '50ms'
+  duration: '5m'
+  scheduler:
+    cron: '@every 6h'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: postgresql-primary-failure
+  namespace: databases
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - databases
+    labelSelectors:
+      app: postgresql
+      role: primary
+  scheduler:
+    cron: '@every 12h'
+  duration: '2m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress-test
+  namespace: default
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: event-processor-service
+  stressors:
+    cpu:
+      workers: 4
+      load: 80
+  duration: '10m'
+  scheduler:
+    cron: '@every 8h'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: az-failure-simulation
+  namespace: default
+spec:
+  action: pod-kill
+  mode: all
+  selector:
+    namespaces:
+      - default
+    expressionSelectors:
+      - key: topology.kubernetes.io/zone
+        operator: In
+        values:
+          - us-east-1a
+  duration: '5m'
+  scheduler:
+    cron: '@weekly'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: memory-leak-simulation
+  namespace: default
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: recommendation-engine
+  stressors:
+    memory:
+      workers: 1
+      size: '512Mi'
+  duration: '5m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: consumer-group-rebalance
+  namespace: default
+spec:
+  action: partition
+  mode: one
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: event-processor-service
+  direction: both
+  duration: '2m'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: dns-resolution-failure
+  namespace: default
+spec:
+  action: error
+  mode: all
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: analytics-api
+  patterns:
+    - gamemetrics-kafka-bootstrap.kafka.svc.cluster.local
+  duration: '3m'

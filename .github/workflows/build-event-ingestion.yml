@@ -1,0 +1,167 @@
+name: Build and Deploy Event Ingestion Service
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'services/event-ingestion-service/**'
+      - '.github/workflows/build-event-ingestion.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'services/event-ingestion-service/**'
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: event-ingestion-service
+  EKS_CLUSTER_NAME: gamemetrics-dev
+  SERVICE_NAME: event-ingestion
+
+jobs:
+  build-and-push:
+    name: Build Docker Image and Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/event-ingestion-service
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  deploy-to-dev:
+    name: Deploy to Development (Auto)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl set image deployment/${{ env.SERVICE_NAME }} \
+            ${{ env.SERVICE_NAME }}=${{ needs.build-and-push.outputs.image-tag }} \
+            -n gamemetrics
+          
+          kubectl rollout status deployment/${{ env.SERVICE_NAME }} -n gamemetrics --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n gamemetrics -l app=${{ env.SERVICE_NAME }}
+          kubectl logs -n gamemetrics -l app=${{ env.SERVICE_NAME }} --tail=50
+
+  deploy-to-prod:
+    name: Deploy to Production (Manual Approval)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl set image deployment/${{ env.SERVICE_NAME }} \
+            ${{ env.SERVICE_NAME }}=${{ needs.build-and-push.outputs.image-tag }} \
+            -n gamemetrics
+          
+          kubectl rollout status deployment/${{ env.SERVICE_NAME }} -n gamemetrics --timeout=10m
+
+      - name: Run smoke tests
+        run: |
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod -l app=${{ env.SERVICE_NAME }} -n gamemetrics --timeout=5m
+          
+          # Test health endpoints
+          POD=$(kubectl get pod -n gamemetrics -l app=${{ env.SERVICE_NAME }} -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n gamemetrics $POD -- wget -q -O- http://localhost:8080/health/live
+          kubectl exec -n gamemetrics $POD -- wget -q -O- http://localhost:8080/health/ready
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Deployment to production successful!"
+          echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
+          echo "Digest: ${{ needs.build-and-push.outputs.image-digest }}"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed! Rolling back..."
+          kubectl rollout undo deployment/${{ env.SERVICE_NAME }} -n gamemetrics
+          kubectl rollout status deployment/${{ env.SERVICE_NAME }} -n gamemetrics --timeout=5m

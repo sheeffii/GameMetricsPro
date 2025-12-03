@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-ingestion
+  namespace: gamemetrics
+  labels:
+    app: event-ingestion
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-ingestion
+  template:
+    metadata:
+      labels:
+        app: event-ingestion
+        version: v1
+    spec:
+      containers:
+      - name: event-ingestion
+        image: 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-ingestion-service:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        # Kafka Configuration
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: bootstrap-servers
+        - name: KAFKA_TOPIC_PLAYER_EVENTS
+          value: "player.events.raw"
+        - name: KAFKA_TOPIC_USER_ACTIONS
+          value: "user.actions"
+        
+        # Database Configuration
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: port
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        
+        # Redis Configuration
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: port
+        
+        # Application Configuration
+        - name: SERVER_PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: ENVIRONMENT
+          value: "dev"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-ingestion
+  namespace: gamemetrics
+  labels:
+    app: event-ingestion
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app: event-ingestion
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: event-ingestion
+  namespace: gamemetrics

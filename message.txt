@@ -1,0 +1,532 @@
+DevOps Engineering Challenge - Requirements Document
+Overview
+Build and deploy a distributed, event-driven gaming analytics platform that processes player events in real-time. This challenge tests your ability to design, implement, and operate production-grade cloud-native infrastructure.
+Timeline: 8-12 weeks
+Difficulty: Senior Level
+Commitment: Part-time (10-15 hours/week) or Full-time (1-2 weeks intensive)
+
+Business Context
+You're building infrastructure for "GameMetrics Pro" - a platform that:
+
+Tracks player behavior across multiple gaming brands
+Processes real-time events (gameplay, transactions, achievements)
+Generates AI-powered game recommendations
+Provides live analytics dashboards for casino operators
+Handles GDPR compliance with automated data retention
+Supports multi-region deployment for data sovereignty
+
+Expected Load:
+
+50,000+ events per second during peak hours
+10M+ daily active users
+99.9% uptime SLA
+P99 latency < 500ms
+
+
+Architecture Requirements
+Microservices (8 Services)
+Build or mock the following services:
+
+event-ingestion-service (Go)
+
+REST API for receiving player events
+Rate limiting: 10k req/sec
+Publishes to Kafka
+
+
+event-processor-service (Python)
+
+Consumes from Kafka
+Real-time aggregation
+Writes to TimescaleDB
+
+
+recommendation-engine (Python/FastAPI)
+
+ML model serving
+Redis caching
+Qdrant vector search
+
+
+analytics-api (Node.js/GraphQL)
+
+Dashboard API
+WebSocket real-time updates
+Multi-tenant isolation
+
+
+user-service (Java Spring Boot)
+
+Player profile management
+OAuth2 authentication
+GDPR compliance
+
+
+notification-service (Go)
+
+Multi-channel delivery
+Dead letter queue handling
+
+
+data-retention-service (Python)
+
+Scheduled archival
+S3 integration
+Audit logging
+
+
+admin-dashboard (React/Next.js)
+
+Operator dashboard
+Real-time visualizations
+
+
+
+Infrastructure Components
+Required Technologies
+Message Streaming:
+
+Kafka 3.6+ with Strimzi Operator
+3 brokers, 5 topics, replication factor 3
+Schema Registry (Confluent or Apicurio)
+Kafka Connect with Debezium for PostgreSQL CDC
+
+Databases:
+
+PostgreSQL 15 with streaming replication (1 primary + 2 replicas)
+TimescaleDB for time-series analytics
+Redis Cluster (3 masters + 3 replicas)
+Qdrant vector database
+MinIO for S3-compatible object storage
+
+Orchestration:
+
+Kubernetes 1.28+ (3 clusters minimum: dev, staging, prod)
+Service Mesh: Istio or Linkerd
+Storage: Multiple StorageClasses (fast-ssd, standard, archive)
+
+Observability:
+
+Prometheus + Thanos for metrics
+Grafana for visualization
+Loki for log aggregation
+Tempo for distributed tracing
+AlertManager for alerting
+
+
+Technical Requirements
+Phase 1: Infrastructure Setup ⭐⭐⭐
+Deliverables:
+
+ 3 Kubernetes clusters deployed (dev, staging, production)
+ RBAC configured with least-privilege access
+ Pod Security Standards enforced (restricted mode)
+ Kafka cluster with 3 brokers using Strimzi
+ All databases deployed with high availability
+ Service mesh with mTLS enabled
+ Multiple storage classes configured
+
+Success Criteria:
+
+All pods passing health checks
+Kafka surviving broker failure with no data loss
+Database replication lag < 1 second
+Network policies enforcing security
+
+Phase 2: CI/CD Pipeline ⭐⭐⭐⭐
+Deliverables:
+
+ GitOps setup with ArgoCD (app-of-apps pattern)
+ CI pipeline with security scanning (Trivy, Snyk)
+ Automated testing (unit + integration tests)
+ Container image signing with Cosign
+ SBOM generation
+ Canary deployments implemented
+ Blue-green deployment capability
+ Automated rollback on error rate spike
+ Database migration handling (Flyway/Liquibase)
+
+Success Criteria:
+
+Git push triggers automated deployment
+Security scans block vulnerable images
+Canary deploys 10% → 50% → 100% automatically
+Zero-downtime deployments
+Rollback completes in < 2 minutes
+
+Phase 3: Observability & Monitoring ⭐⭐⭐⭐
+Deliverables:
+
+ Prometheus with ServiceMonitors for all apps
+ Thanos for long-term storage and multi-cluster queries
+ Comprehensive alerting rules (40+ alerts minimum)
+ Alert routing to PagerDuty and Slack
+ Loki with S3 backend for logs
+ Tempo for distributed tracing
+ OpenTelemetry instrumentation in services
+ Grafana dashboards for:
+
+Platform overview
+Kafka health
+Service SLIs (error rate, latency, throughput)
+Database performance
+Business metrics
+Cost monitoring
+
+
+
+Success Criteria:
+
+All metrics scraped and stored
+Alerts fire within 1 minute of threshold breach
+Can trace requests end-to-end across services
+Dashboards show real-time data with < 30s lag
+Runbook links in every critical alert
+
+Phase 4: Security & Compliance ⭐⭐⭐⭐⭐
+Deliverables:
+
+ NetworkPolicies with default deny-all
+ Istio authorization policies
+ External Secrets Operator with Vault/AWS Secrets Manager
+ Automated secret rotation (passwords every 90 days)
+ Admission controller (OPA/Kyverno) enforcing:
+
+Image signatures required
+No privileged containers
+Resource limits required
+Approved registries only
+
+
+ Audit logging to immutable storage
+ GDPR data deletion workflow
+ Compliance reports automated
+
+Success Criteria:
+
+Zero pods can communicate without explicit policy
+No secrets in Git repositories
+All images signed and scanned
+Can delete all user data in < 1 hour (GDPR compliance)
+Pass CIS Kubernetes Benchmark
+
+Phase 5: Disaster Recovery & Chaos ⭐⭐⭐⭐⭐
+Deliverables:
+
+ Velero backups (daily full, hourly incremental)
+ Cross-region backup replication
+ PostgreSQL PITR with WAL archiving (RPO: 5 min, RTO: 15 min)
+ Kafka MirrorMaker 2 to DR cluster
+ Multi-region production (active-active for APIs, active-passive for databases)
+ Chaos experiments using Chaos Mesh:
+
+Kafka broker failure
+Network latency injection (300ms)
+PostgreSQL primary failure
+CPU stress test with HPA
+Entire AZ failure
+Memory leak simulation
+Consumer group rebalance
+DNS resolution failure
+
+
+
+Success Criteria:
+
+Backup restore tested monthly
+All chaos experiments pass with < 0.1% error rate
+Failover to DR region completes in < 5 minutes
+No data loss in any scenario
+System self-heals without manual intervention
+
+Phase 6: Performance & Optimization ⭐⭐⭐
+Deliverables:
+
+ HPA for all services (CPU + custom metrics)
+ VPA recommendations applied
+ Cluster autoscaler configured
+ Resource requests = average usage
+ Resource limits = 1.5x P95 usage
+ Load testing scenarios (k6 or Locust):
+
+50k events/sec sustained
+5k API req/sec
+1k predictions/sec
+
+
+ Cost monitoring per service/team
+ Resource quotas per namespace
+
+Success Criteria:
+
+Services scale automatically under load
+Load test shows system handles 2x expected capacity
+Resource utilization 60-80% (not over/under-provisioned)
+Cost per transaction tracked
+
+
+Kafka-Specific Requirements
+Since Kafka is a core component, pay special attention to:
+Topics Configuration
+yamlplayer.events.raw:
+  partitions: 12
+  replication: 3
+  retention: 7 days
+  
+player.events.processed:
+  partitions: 6
+  replication: 3
+  retention: 30 days
+  cleanup: compact
+  
+recommendations.generated:
+  partitions: 6
+  replication: 3
+  retention: 1 day
+Must-Have Features
+
+ SASL/SCRAM authentication
+ ACLs for producer/consumer authorization
+ JMX metrics exported to Prometheus
+ Consumer lag monitoring with alerts
+ Rack awareness for multi-AZ distribution
+ Topic auto-creation DISABLED
+ min.insync.replicas = 2
+ acks = all for producers
+
+Kafka Monitoring Alerts Required
+
+Consumer lag > 10k messages (warning)
+Consumer lag > 50k messages (critical)
+Broker down (critical)
+Under-replicated partitions (warning)
+Offline partitions (critical)
+
+
+Deliverables
+Submit the following:
+1. Git Repositories (Required)
+
+Infrastructure as Code (Terraform/Pulumi/CloudFormation)
+Kubernetes manifests (Helm charts or Kustomize)
+Service source code (or mock implementations)
+CI/CD pipeline definitions
+Documentation
+
+2. Architecture Documentation (Required)
+
+System architecture diagram with data flow
+Network topology diagram
+CI/CD flow diagram
+Disaster recovery topology
+Architecture Decision Records (ADRs) for major choices
+
+3. Runbooks (Required)
+
+Incident response procedures
+Disaster recovery procedures
+Scaling procedures
+Deployment procedures
+Troubleshooting guide for common issues
+
+4. Live Demo (Required)
+Provide access to working clusters or a recorded demo (15-20 minutes) showing:
+
+End-to-end event flow working
+Automated deployment in action
+Chaos experiment execution
+System recovering from failure
+Dashboard walkthrough
+Alert firing and routing
+
+5. Chaos Experiment Results (Required)
+
+Document all 8 chaos experiments
+Show before/after metrics
+Document lessons learned
+List improvements made based on findings
+
+
+Evaluation Criteria
+You'll be evaluated on:
+CategoryWeightKey Focus AreasArchitecture20%Scalability, resilience, proper service separationInfrastructure20%K8s best practices, HA setup, resource managementCI/CD15%Automation quality, security scanning, deployment strategiesObservability15%Complete metrics/logs/traces, actionable alerts, useful dashboardsSecurity15%Network policies, secrets management, compliance automationReliability10%Chaos test results, backup/recovery, disaster recoveryDocumentation5%Clarity, completeness, maintainability
+Minimum Passing Requirements (70%)
+Must have:
+
+✅ All services deployed and communicating via Kafka
+✅ Event flow working end-to-end
+✅ Kafka cluster surviving failures
+✅ CI/CD deploying to all 3 environments
+✅ ArgoCD syncing from Git
+✅ Basic monitoring dashboards
+✅ Database replication working
+✅ Logs aggregated and searchable
+✅ NetworkPolicies enforcing security
+✅ At least 3 chaos experiments passing
+
+Excellence (90%+)
+Additionally requires:
+
+✅ All 8 chaos experiments passing
+✅ Multi-region failover tested
+✅ Canary deployments with automated rollback
+✅ Distributed tracing showing full request paths
+✅ GDPR compliance automation
+✅ Comprehensive documentation with runbooks
+✅ Cost optimization implemented
+✅ Zero-downtime everything
+
+
+Bonus Challenges (Optional)
++10 pts: GitOps Promotion Pipeline
+
+Automated promotion: dev → staging → production
+Smoke tests gate each promotion
+Auto-generated release notes
+Drift detection and auto-remediation
+
++10 pts: Multi-Tenancy
+
+Separate namespace per gaming brand
+Data isolation in shared databases
+Brand-specific metrics and dashboards
+Cost allocation per brand
+
++10 pts: ML Pipeline Integration
+
+Deploy Kubeflow or MLflow
+Automated model retraining pipeline
+Canary deployments for models (A/B testing)
+Model performance tracking
+
+
+Getting Started
+Prerequisites
+
+Kubernetes cluster access (can use local kind/k3s for dev)
+Docker registry access
+Git repository hosting
+Basic cloud credits (AWS/GCP/Azure/DigitalOcean)
+
+Recommended Approach
+Week 1: Infrastructure foundation
+
+Deploy dev Kubernetes cluster
+Set up Kafka with Strimzi
+Deploy PostgreSQL and Redis
+
+Weeks 2-3: Services
+
+Build/mock microservices
+Implement event flow
+Basic Kafka integration
+
+Weeks 4-5: CI/CD
+
+Set up ArgoCD
+Create pipelines
+Implement GitOps
+
+Weeks 6-7: Observability
+
+Deploy monitoring stack
+Add metrics to services
+Create dashboards and alerts
+
+Weeks 8-9: Security & Hardening
+
+Implement security controls
+Set up secrets management
+Configure backups
+
+Weeks 10-12: Testing & Polish
+
+Run chaos experiments
+Test disaster recovery
+Complete documentation
+
+Quick Start Command
+bash# Clone starter files
+git clone [repository-url]
+
+# Deploy Kafka first
+kubectl create namespace kafka
+kubectl create -f 'https://strimzi.io/install/latest?namespace=kafka'
+kubectl apply -f kafka/kafka-topics.yaml
+
+# Then follow QUICK_START.md for detailed steps
+
+Questions & Support
+During the challenge, you can ask for clarification on:
+
+Business requirements (realistic scenarios)
+Budget constraints (affects cloud vs on-prem decisions)
+Team size assumptions (affects RBAC design)
+Compliance requirements (affects security implementation)
+
+You CANNOT ask for:
+
+Implementation solutions
+Debugging help
+Architecture decisions
+Tool recommendations (beyond what's specified)
+
+
+Submission
+When ready, provide:
+
+Git repository URLs (public or grant access)
+Live demo (scheduled session or recorded video)
+Documentation (in repository)
+Cluster access (optional - kubeconfig with read-only access)
+
+Deadline: [To be agreed upon]
+
+Tips for Success
+✅ DO:
+
+Start simple, add complexity gradually
+Automate everything from day one
+Test failure scenarios continuously
+Document decisions as you make them
+Use GitOps for everything - no manual kubectl apply
+Read the provided examples thoroughly
+
+❌ DON'T:
+
+Try to build everything at once
+Skip monitoring/observability
+Hardcode credentials anywhere
+Ignore security until the end
+Wait until the end to test chaos scenarios
+Forget to document
+
+
+Resources Provided
+You'll receive:
+
+Complete Kafka configuration examples
+Sample service deployment manifests
+GitHub Actions CI/CD pipeline template
+Prometheus alerting rules (40+ alerts)
+Chaos experiment definitions
+Evaluation rubric
+Architecture diagrams
+Quick start guide
+
+
+Final Notes
+This is a senior-level challenge designed to be challenging but achievable. It simulates real production infrastructure work. Focus on:
+
+Understanding before implementing - Read requirements carefully
+Quality over speed - Production-grade matters
+Incremental progress - Working system > feature complete broken system
+Documentation - Future you (and others) will thank you
+Resilience - Assume everything will fail
+
+The goal is to demonstrate you can build, deploy, and operate production-grade cloud-native infrastructure. This is your chance to showcase your DevOps expertise.
+Good luck! 🚀
+
+Challenge Version: 1.0
+Last Updated: November 2024
+Estimated Effort: 100-150 hoursShareArtifactsDownload allQuick reference for youDocument · MD Devops challenge requirementsDocument · MD Evaluation rubricDocument · MD ArchitectureDocument · MD Quick startDocument · MD ReadmeDocument · MD Event ingestion serviceYAML Prometheus rulesYAML Github actionsYML Kafka topicsYAML ReadmeDocument · MD 
