@@ -17,6 +17,7 @@ permissions:
   security-events: write
   packages: write
   id-token: write
+  actions: read
 
 env:
   AWS_REGION: us-east-1
@@ -62,6 +63,7 @@ jobs:
       security-events: write
       packages: write
       id-token: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
