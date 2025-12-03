@@ -89,11 +89,9 @@ jobs:
           echo "Image URI: ${IMAGE_TAG}"
 
       - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+          subject-path: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}@${{ steps.build.outputs.digest }}
 
   deploy-to-dev:
     name: Deploy to Development (Auto)
