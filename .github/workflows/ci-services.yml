@@ -1,19 +1,22 @@
-# This workflow is currently disabled in favor of build-event-ingestion.yml
-# To enable, change this to: name: CI - Build and Test Services
-name: CI - Build and Test Services (Disabled)
+name: CI - Build and Test Services
 
 on:
-  workflow_dispatch: # Manual trigger only
-  # Uncomment below to enable automatic triggers
-  # push:
-  #   branches: [ main, develop ]
-  #   paths:
-  #     - 'services/**'
-  #     - '.github/workflows/ci-services.yml'
-  # pull_request:
-  #   branches: [ main, develop ]
-  #   paths:
-  #     - 'services/**'
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'services/**'
+      - '.github/workflows/ci-services.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'services/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  packages: write
+  id-token: write
 
 env:
   AWS_REGION: us-east-1
@@ -54,7 +57,13 @@ jobs:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.services != '[]' && needs.detect-changes.outputs.services != '' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: write
+      id-token: write
     strategy:
+      fail-fast: false
       matrix:
         service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
     
@@ -116,17 +125,20 @@ jobs:
           scan-ref: 'services/${{ matrix.service }}'
           format: 'sarif'
           output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: false
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+          category: 'fs-scan-${{ matrix.service }}'
 
-      - name: Run Snyk security scan
+      - name: Run Snyk security scan (if token available)
         uses: snyk/actions/docker@master
         continue-on-error: true
+        if: ${{ env.SNYK_TOKEN != '' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
@@ -147,6 +159,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: services/${{ matrix.service }}
@@ -156,6 +169,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
@@ -167,10 +182,20 @@ jobs:
           image-ref: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-image-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: false
+
+      - name: Upload Trivy image scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+          category: 'image-scan-${{ matrix.service }}'
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.3'
 
       - name: Push Docker image to ECR
         if: github.event_name != 'pull_request'
@@ -182,16 +207,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
 
-      - name: Sign Docker image
+      - name: Sign Docker image with Cosign (keyless)
         if: github.event_name != 'pull_request'
         env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          COSIGN_EXPERIMENTAL: 1
         run: |
-          echo "$COSIGN_PRIVATE_KEY" > cosign.key
-          cosign sign --key cosign.key ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
-          rm cosign.key
+          # Sign using keyless mode with GitHub OIDC
+          cosign sign --yes ${{ env.ECR_REGISTRY }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -199,12 +224,8 @@ jobs:
           image: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
           format: spdx-json
           output-file: sbom-${{ matrix.service }}.spdx.json
-
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ matrix.service }}
-          path: sbom-${{ matrix.service }}.spdx.json
+          upload-artifact: true
+          upload-release-assets: false
 
   integration-tests:
     name: Integration Tests

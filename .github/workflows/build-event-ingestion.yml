@@ -19,7 +19,7 @@ permissions:
   id-token: write
   contents: read
   packages: write
-  attestations: write
+  security-events: write
 
 env:
   AWS_REGION: us-east-1
@@ -37,10 +37,11 @@ jobs:
       id-token: write
       contents: read
       packages: write
-      attestations: write
+      security-events: write
     outputs:
       image-uri: ${{ steps.image-uri.outputs.uri }}
       image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
     
     steps:
       - name: Checkout code
@@ -82,6 +83,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+          provenance: false
+          sbom: false
 
       - name: Set image URI output
         id: image-uri
@@ -90,12 +93,51 @@ jobs:
           echo "uri=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Image URI: ${IMAGE_TAG}"
 
-      - name: Generate SLSA Provenance Attestation
-        uses: actions/attest-build-provenance@v2
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
         with:
-          subject-name: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+          image-ref: ${{ steps.image-uri.outputs.uri }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: false
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-scan'
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.3'
+
+      - name: Sign Docker image with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          # Sign using keyless mode with GitHub OIDC
+          cosign sign --yes ${{ steps.image-uri.outputs.uri }}
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image-uri.outputs.uri }}
+          format: spdx-json
+          output-file: sbom-event-ingestion.spdx.json
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Upload SBOM to ECR
+        run: |
+          aws ecr put-image \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --image-manifest file://sbom-event-ingestion.spdx.json \
+            --image-tag ${{ steps.meta.outputs.version }}-sbom \
+            --region ${{ env.AWS_REGION }} || echo "SBOM upload failed (non-blocking)"
 
   deploy-to-dev:
     name: Deploy to Development (Auto)
