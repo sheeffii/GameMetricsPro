@@ -37,7 +37,7 @@ variable "public_subnet_cidrs" {
 variable "eks_cluster_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.29"
+  default     = "1.30"
 }
 
 variable "tags" {
@@ -47,27 +47,5 @@ variable "tags" {
     Environment = "dev"
     Project     = "GameMetrics Pro"
     ManagedBy   = "Terraform"
-  }
-}
-
-variable "enable_local_ecr_build_push" {
-  description = "Enable running local Docker build and push to ECR during Terraform apply (uses local-exec)."
-  type        = bool
-  default     = false
-}
-
-variable "ecr_repositories" {
-  description = "ECR repositories to create"
-  type = map(object({
-    image_tag_mutability = optional(string, "MUTABLE")
-    scan_on_push         = optional(bool, true)
-    lifecycle_policy     = optional(string)
-  }))
-  default = {
-    "event-ingestion-service" = {
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      lifecycle_policy     = null  # Set in main.tf or pass JSON string
-    }
   }
 }

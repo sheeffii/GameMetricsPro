@@ -15,16 +15,6 @@ terraform {
       version = "~> 2.12"
     }
   }
-
-  # Using local backend for initial deployment
-  # Uncomment S3 backend after infrastructure is created
-  # backend "s3" {
-  #   bucket         = "gamemetrics-terraform-state-dev"
-  #   key            = "dev/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   encrypt        = true
-  #   dynamodb_table = "gamemetrics-terraform-locks-dev"
-  # }
 }
 
 provider "aws" {
@@ -87,11 +77,7 @@ module "eks" {
         role = "system"
       }
 
-      taints = [{
-        key    = "dedicated"
-        value  = "system"
-        effect = "NO_SCHEDULE"
-      }]
+      taints = []
     }
 
     application = {
@@ -154,19 +140,19 @@ module "rds" {
   identifier  = "gamemetrics-${var.environment}"
 
   engine         = "postgres"
-  engine_version = "15"
+  engine_version = "15.4"
   instance_class = "db.t3.micro"
 
-  allocated_storage     = 20
-  max_allocated_storage = 20
-  storage_encrypted     = false
+  allocated_storage     = 50
+  max_allocated_storage = 120
+  storage_encrypted     = true
 
   database_name = "gamemetrics"
   username      = "dbadmin"
   port          = 5432
 
   multi_az                = false
-  backup_retention_period = 0
+  backup_retention_period = 7
   backup_window           = "03:00-04:00"
   maintenance_window      = "mon:04:00-mon:05:00"
 
@@ -180,9 +166,10 @@ module "rds" {
 
   # Enhanced Monitoring
   monitoring_interval = 0
+  monitoring_role_arn = null
 
   # Read Replicas
-  replica_count  = 0
+  create_read_replica = false
 
   tags = var.tags
 }
@@ -203,14 +190,14 @@ module "elasticache" {
 
   # Cluster mode disabled for free tier
   cluster_mode_enabled    = false
-  num_node_groups         = 1
+  num_node_groups         = 0
   replicas_per_node_group = 0
 
   automatic_failover_enabled = false
   multi_az_enabled           = false
 
-  at_rest_encryption_enabled = false
-  transit_encryption_enabled = false
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnet_ids
@@ -218,7 +205,7 @@ module "elasticache" {
   security_group_ids = [module.eks.cluster_security_group_id]
 
   # Backup
-  snapshot_retention_limit = 5
+  snapshot_retention_limit = 1
   snapshot_window          = "03:00-05:00"
 
   tags = var.tags
@@ -296,49 +283,6 @@ module "s3" {
   tags = var.tags
 }
 
-# ECR Repositories
-module "ecr" {
-  source = "../../modules/ecr"
-
-  repositories = {
-    "event-ingestion-service" = {
-      image_tag_mutability = "MUTABLE"
-      scan_on_push         = true
-      lifecycle_policy     = jsonencode({
-        rules = [
-          {
-            rulePriority = 1
-            description  = "Keep last 10 images"
-            selection = {
-              tagStatus     = "any"
-              countType     = "imageCountMoreThan"
-              countNumber   = 10
-            }
-            action = { type = "expire" }
-          }
-        ]
-      })
-    }
-  }
-}
-
-# Optionally build and push Docker images locally (temporary until CI/CD is in place)
-# Disabled by default - enable with: TF_VAR_enable_local_ecr_build_push=true terraform apply
-resource "null_resource" "build_and_push_ecr" {
-  count = var.enable_local_ecr_build_push ? 1 : 0
-
-  # Rebuild when ECR repo changes
-  triggers = {
-    repo_url = module.ecr.repository_urls["event-ingestion-service"]
-    region   = var.aws_region
-  }
-
-  provisioner "local-exec" {
-    working_dir = "${path.module}/../../scripts"
-    command     = "./build-push-ecr.sh ${var.aws_region} ${module.ecr.repository_urls["event-ingestion-service"]} ../services/event-ingestion-service"
-  }
-}
-
 # IAM Role for RDS Enhanced Monitoring
 resource "aws_iam_role" "rds_monitoring" {
   name = "rds-monitoring-${var.environment}"
@@ -364,4 +308,32 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
-# Kubernetes and Helm providers are configured in providers.tf and require the EKS cluster
+# ECR Module
+module "ecr" {
+  source = "../../modules/ecr"
+
+  repositories = {
+    "event-ingestion-service" = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = true
+      lifecycle_policy = jsonencode({
+        rules = [
+          {
+            rulePriority = 1
+            description  = "Keep last 10 images"
+            selection = {
+              tagStatus   = "any"
+              countType   = "imageCountMoreThan"
+              countNumber = 10
+            }
+            action = {
+              type = "expire"
+            }
+          }
+        ]
+      })
+    }
+  }
+
+  tags = var.tags
+}

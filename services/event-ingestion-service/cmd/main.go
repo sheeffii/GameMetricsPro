@@ -142,7 +142,7 @@ func NewServer() *Server {
 	router.GET("/health/live", server.livenessProbe)
 	router.GET("/health/ready", server.readinessProbe)
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	
+
 	// Swagger UI
 	router.GET("/swagger", server.swaggerRedirect)
 	router.GET("/api-docs", server.swaggerSpec)
@@ -211,12 +211,12 @@ func (s *Server) ingestEvent(c *gin.Context) {
 
 	// Add metadata
 	eventWithMetadata := map[string]interface{}{
-		"event_id":   eventID,
-		"event_type": event.EventType,
-		"player_id":  event.PlayerID,
-		"game_id":    event.GameID,
-		"timestamp":  event.Timestamp,
-		"data":       event.Data,
+		"event_id":    eventID,
+		"event_type":  event.EventType,
+		"player_id":   event.PlayerID,
+		"game_id":     event.GameID,
+		"timestamp":   event.Timestamp,
+		"data":        event.Data,
 		"ingested_at": time.Now(),
 	}
 
@@ -370,7 +370,7 @@ func (s *Server) swaggerSpec(c *gin.Context) {
 		"components": map[string]interface{}{
 			"schemas": map[string]interface{}{
 				"Event": map[string]interface{}{
-					"type": "object",
+					"type":     "object",
 					"required": []string{"player_id", "game_id", "event_type", "timestamp"},
 					"properties": map[string]interface{}{
 						"player_id":  map[string]string{"type": "string"},

@@ -1,0 +1,368 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: event-consumer-config
+  namespace: gamemetrics
+data:
+  KAFKA_MAX_POLL_RECORDS: "100"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "dev"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-consumer-logger
+  namespace: gamemetrics
+  labels:
+    app: event-consumer-logger
+    component: consumer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-consumer-logger
+  template:
+    metadata:
+      labels:
+        app: event-consumer-logger
+        component: consumer
+    spec:
+      containers:
+      - name: event-consumer-logger
+        image: 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-consumer-logger:latest
+        imagePullPolicy: Always
+        
+        env:
+        # Kafka Configuration
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: bootstrap-servers
+        - name: KAFKA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: username
+              optional: true
+        - name: KAFKA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: password
+              optional: true
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "SASL_PLAINTEXT"
+        - name: KAFKA_TOPIC
+          value: "player.events.raw"
+        - name: KAFKA_GROUP_ID
+          value: "event-logger-group"
+        
+        # Database Configuration
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: port
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        
+        # Consumer Configuration
+        - name: KAFKA_MAX_POLL_RECORDS
+          valueFrom:
+            configMapKeyRef:
+              name: event-consumer-config
+              key: KAFKA_MAX_POLL_RECORDS
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: event-consumer-config
+              key: LOG_LEVEL
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - ps aux | grep "consumer.py" | grep -v grep || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - python -c "import psycopg2; psycopg2.connect(host=os.environ['DB_HOST'], database=os.environ['DB_NAME'], user=os.environ['DB_USER'], password=os.environ['DB_PASSWORD'])"
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-consumer-stats
+  namespace: gamemetrics
+  labels:
+    app: event-consumer-stats
+    component: consumer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-consumer-stats
+  template:
+    metadata:
+      labels:
+        app: event-consumer-stats
+        component: consumer
+    spec:
+      containers:
+      - name: event-consumer-stats
+        image: 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-consumer-stats:latest
+        imagePullPolicy: Always
+        
+        env:
+        # Kafka Configuration
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: bootstrap-servers
+        - name: KAFKA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: username
+              optional: true
+        - name: KAFKA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: password
+              optional: true
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "SASL_PLAINTEXT"
+        - name: KAFKA_TOPIC
+          value: "player.events.raw"
+        - name: KAFKA_GROUP_ID
+          value: "stats-aggregator-group"
+        
+        # Database Configuration
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: port
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        
+        # Redis Configuration
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: port
+        - name: REDIS_DB
+          value: "0"
+        
+        # Consumer Configuration
+        - name: BUFFER_SIZE
+          value: "100"
+        - name: BUFFER_TIMEOUT_SECONDS
+          value: "30"
+        - name: KAFKA_MAX_POLL_RECORDS
+          valueFrom:
+            configMapKeyRef:
+              name: event-consumer-config
+              key: KAFKA_MAX_POLL_RECORDS
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - ps aux | grep "consumer.py" | grep -v grep || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-consumer-leaderboard
+  namespace: gamemetrics
+  labels:
+    app: event-consumer-leaderboard
+    component: consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-consumer-leaderboard
+  template:
+    metadata:
+      labels:
+        app: event-consumer-leaderboard
+        component: consumer
+    spec:
+      containers:
+      - name: event-consumer-leaderboard
+        image: 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-consumer-leaderboard:latest
+        imagePullPolicy: Always
+        
+        env:
+        # Kafka Configuration
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: bootstrap-servers
+        - name: KAFKA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: username
+              optional: true
+        - name: KAFKA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-credentials
+              key: password
+              optional: true
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "SASL_PLAINTEXT"
+        - name: KAFKA_TOPIC
+          value: "player.events.raw"
+        - name: KAFKA_GROUP_ID
+          value: "leaderboard-manager-group"
+        
+        # Database Configuration
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: port
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        
+        # Redis Configuration
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: port
+        - name: REDIS_DB
+          value: "1"
+        
+        # Consumer Configuration
+        - name: LEADERBOARD_TOP_N
+          value: "100"
+        - name: KAFKA_MAX_POLL_RECORDS
+          valueFrom:
+            configMapKeyRef:
+              name: event-consumer-config
+              key: KAFKA_MAX_POLL_RECORDS
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - ps aux | grep "consumer.py" | grep -v grep || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3

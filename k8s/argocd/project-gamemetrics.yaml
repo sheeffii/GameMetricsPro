@@ -4,17 +4,19 @@ metadata:
   name: gamemetrics
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io
+    - resources-finalizer.argoproj.io/argocd
 spec:
   description: GameMetrics Real-time Event Processing Platform
   
   # Source repositories allowed for this project
   sourceRepos:
-    - 'https://github.com/YOUR-USERNAME/RealtimeGaming.git'
+    - 'https://github.com/sheeffii/GameMetricsPro.git'
     - '*'  # Allow any Helm chart repository
   
   # Destination clusters and namespaces
   destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
     - namespace: gamemetrics
       server: https://kubernetes.default.svc
     - namespace: kafka
@@ -67,6 +69,10 @@ spec:
       kind: KafkaTopic
     - group: kafka.strimzi.io
       kind: KafkaUser
+    - group: argoproj.io
+      kind: Application
+    - group: argoproj.io
+      kind: AppProject
   
   # Orphaned resources monitoring
   orphanedResources:

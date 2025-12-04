@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gamemetrics-app-of-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argoproj.io/argocd
+spec:
+  project: gamemetrics
+  
+  # Source: Git repository - points to argocd/applications directory
+  source:
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/argocd/applications
+  
+  # Destination: ArgoCD namespace on cluster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  
+  # Sync policy: Automated with safeguards
+  syncPolicy:
+    automated:
+      prune: true      # Auto-delete orphaned ArgoCD applications
+      selfHeal: true   # Auto-sync when cluster state diverges from Git
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Revision history
+  revisionHistoryLimit: 10

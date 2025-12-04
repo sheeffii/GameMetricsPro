@@ -1,85 +1,157 @@
+# ============================================================================
+# Kafka Topics - AWS Free Tier Configuration with Strimzi KafkaTopic CRDs
+# ============================================================================
+# Topics are managed by Strimzi Topic Operator (entityOperator.topicOperator)
+# This is the PRODUCTION-READY way to manage topics (not auto-create or scripts)
+# 
+# AWS Free Tier Optimized: 2 replicas, lower retention, optimized partitions
+# Deployment: kubectl apply -k k8s/kafka/base/ OR via deploy-infra-only.sh
+# Verify:     kubectl get kafkatopics -n kafka
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# PRIMARY EVENT INGESTION TOPIC
+# ----------------------------------------------------------------------------
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: player.events.raw
   labels:
     strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: event-ingestion
 spec:
-  partitions: 3
-  replicas: 1
+  partitions: 2  # Free tier: reduced from 3
+  replicas: 2  # Free tier: 2 replicas (min for HA)
   config:
-    retention.ms: 604800000
+    retention.ms: 604800000  # 7 days
     compression.type: lz4
-    min.insync.replicas: 1
-    segment.bytes: 1073741824
+    max.message.bytes: 1048576  # 1MB max message size
+    min.insync.replicas: 1  # Free tier: 1 (allows writes with 1 replica down)
+    segment.bytes: 536870912  # 512MB segments (reduced from 1GB)
 ---
+# ----------------------------------------------------------------------------
+# PROCESSED EVENTS (After validation/enrichment)
+# ----------------------------------------------------------------------------
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: player.events.processed
   labels:
     strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: event-processing
 spec:
-  partitions: 3
-  replicas: 1
+  partitions: 2
+  replicas: 2
   config:
-    retention.ms: 2592000000
-    cleanup.policy: compact
+    retention.ms: 1209600000  # 14 days (reduced from 30)
+    cleanup.policy: compact  # Keep latest value per key
     compression.type: lz4
     min.insync.replicas: 1
 ---
+# ----------------------------------------------------------------------------
+# PLAYER STATISTICS (Aggregated metrics)
+# ----------------------------------------------------------------------------
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: recommendations.generated
+  name: player.statistics
   labels:
     strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: analytics
 spec:
   partitions: 2
-  replicas: 1
+  replicas: 2
   config:
-    retention.ms: 86400000
+    retention.ms: 1209600000  # 14 days (reduced from 30)
     compression.type: lz4
     min.insync.replicas: 1
 ---
+# ----------------------------------------------------------------------------
+# GAME LEADERBOARDS (Score updates)
+# ----------------------------------------------------------------------------
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: game.leaderboards
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: leaderboards
+spec:
+  partitions: 1  # Single partition for global ordering
+  replicas: 2
+  config:
+    retention.ms: 604800000  # 7 days (reduced from 30)
+    compression.type: lz4
+    min.insync.replicas: 1
+---
+# ----------------------------------------------------------------------------
+# USER ACTIONS (Clickstream, UI interactions)
+# ----------------------------------------------------------------------------
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: user.actions
   labels:
     strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: analytics
 spec:
-  partitions: 3
-  replicas: 1
+  partitions: 2
+  replicas: 2
   config:
-    retention.ms: 604800000
+    retention.ms: 604800000  # 7 days
     compression.type: lz4
     min.insync.replicas: 1
 ---
+# ----------------------------------------------------------------------------
+# RECOMMENDATIONS (ML-generated suggestions)
+# ----------------------------------------------------------------------------
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: recommendations.generated
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: ml-pipeline
+spec:
+  partitions: 1  # Reduced from 2 for free tier
+  replicas: 2
+  config:
+    retention.ms: 86400000  # 1 day (short-lived recommendations)
+    compression.type: lz4
+    min.insync.replicas: 1
+---
+# ----------------------------------------------------------------------------
+# NOTIFICATIONS (Push notifications, emails)
+# ----------------------------------------------------------------------------
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: notifications
   labels:
     strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: notifications
 spec:
-  partitions: 2
-  replicas: 1
+  partitions: 1  # Reduced from 2 for free tier
+  replicas: 2
   config:
-    retention.ms: 259200000
+    retention.ms: 259200000  # 3 days
     compression.type: lz4
     min.insync.replicas: 1
 ---
+# ----------------------------------------------------------------------------
+# DEAD LETTER QUEUE (Failed event processing)
+# ----------------------------------------------------------------------------
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: dlq.events
+  name: system.dlq
   labels:
     strimzi.io/cluster: gamemetrics-kafka
+    app.kubernetes.io/component: error-handling
 spec:
-  partitions: 2
-  replicas: 1
+  partitions: 1  # Single partition for DLQ
+  replicas: 2
   config:
-    retention.ms: 2592000000
+    retention.ms: 604800000  # 7 days (reduced from 30 for free tier)
     compression.type: lz4
     min.insync.replicas: 1

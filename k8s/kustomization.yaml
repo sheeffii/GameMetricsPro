@@ -5,9 +5,8 @@ resources:
   # Namespaces (always first)
   - namespaces/namespaces.yml
   
-  # ArgoCD is deployed separately via: kubectl apply -k k8s/argocd/base/
-  # Uncomment below to include ArgoCD in the main deployment (not recommended)
-  # - argocd/base
+  # ArgoCD with server resource limits and GitHub credentials (managed via kustomize)
+  - argocd/overlays
   
   # Secrets (Database, Redis, Kafka)
   - secrets

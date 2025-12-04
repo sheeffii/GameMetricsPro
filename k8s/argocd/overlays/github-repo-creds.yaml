@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-repo-creds
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  url: https://github.com/sheeffii/GameMetricsPro.git
+  password: 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
+  username: sheeffii

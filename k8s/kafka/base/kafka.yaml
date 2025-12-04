@@ -19,15 +19,21 @@ spec:
         type: internal
         tls: true
     config:
-      offsets.topic.replication.factor: 1
-      transaction.state.log.replication.factor: 1
-      transaction.state.log.min.isr: 1
-      default.replication.factor: 1
-      min.insync.replicas: 1
-      log.retention.hours: 168
-      log.segment.bytes: 1073741824
+      # Replication settings - AWS FREE TIER OPTIMIZED
+      offsets.topic.replication.factor: 2  # Internal topic replication
+      transaction.state.log.replication.factor: 2
+      transaction.state.log.min.isr: 1  # Allow writes with 1 replica down
+      default.replication.factor: 2  # Default for new topics
+      min.insync.replicas: 1  # Free tier: 1 replica must acknowledge
+      
+      # Retention settings
+      log.retention.hours: 168  # 7 days default
+      log.segment.bytes: 1073741824  # 1GB segments
       log.retention.check.interval.ms: 300000
-      # Auto-create topics when producer sends to non-existent topic
+      
+      # Auto-create topics - FALLBACK ONLY (prefer KafkaTopic CRDs)
+      # If a producer sends to non-existent topic, Kafka will create it
+      # But topic management should be done via KafkaTopic CRDs above
       auto.create.topics.enable: true
 
   # Entity Operator manages topics and users via Kubernetes CRDs
@@ -35,16 +41,16 @@ spec:
     topicOperator:
       resources:
         requests:
-          memory: 150Mi
-          cpu: 100m
+          memory: 256Mi
+          cpu: 250m
         limits:
-          memory: 200Mi
-          cpu: 150m
+          memory: 512Mi
+          cpu: 500m
     userOperator:
       resources:
         requests:
-          memory: 150Mi
-          cpu: 100m
+          memory: 256Mi
+          cpu: 250m
         limits:
-          memory: 200Mi
-          cpu: 150m
+          memory: 512Mi
+          cpu: 500m

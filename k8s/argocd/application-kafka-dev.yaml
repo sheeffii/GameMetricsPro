@@ -10,8 +10,8 @@ spec:
   
   # Source: Git repository
   source:
-    repoURL: https://github.com/YOUR-USERNAME/RealtimeGaming.git
-    targetRevision: develop
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
     path: k8s/kafka/overlays/dev
   
   # Destination: Target Kubernetes cluster and namespace

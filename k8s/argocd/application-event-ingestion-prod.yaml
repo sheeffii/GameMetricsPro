@@ -10,9 +10,9 @@ spec:
   
   # Source: Git repository
   source:
-    repoURL: https://github.com/YOUR-USERNAME/RealtimeGaming.git
-    targetRevision: main  # Track main branch for production
-    path: k8s/apps/event-ingestion/overlays/prod
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/services/event-ingestion
   
   # Destination: Target Kubernetes cluster and namespace
   destination:

@@ -8,8 +8,8 @@ metadata:
 spec:
   project: gamemetrics
   source:
-    repoURL: https://github.com/<YOUR_ORG>/RealtimeGaming.git
-    targetRevision: HEAD
+    repoURL: https://github.com/sheeffii/RealtimeGaming.git
+    targetRevision: main
     path: argocd/apps
   destination:
     server: https://kubernetes.default.svc

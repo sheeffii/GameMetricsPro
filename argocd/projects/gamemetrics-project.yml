@@ -7,7 +7,7 @@ spec:
   description: GameMetrics Pro Platform
   
   sourceRepos:
-    - 'https://github.com/<YOUR_ORG>/RealtimeGaming.git'
+    - 'https://github.com/sheeffii/RealtimeGaming.git'
     - 'https://charts.bitnami.com/bitnami'
     - 'https://prometheus-community.github.io/helm-charts'
     - 'https://grafana.github.io/helm-charts'

@@ -1,0 +1,8 @@
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mUnsupported argument[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on main.tf line 173, in module "rds":
+[31m│[0m [0m 173:   [4mread_replica_count[0m  = 0[0m
+[31m│[0m [0m
+[31m│[0m [0mAn argument named "read_replica_count" is not expected here.
+[31m╵[0m[0m
