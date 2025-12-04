@@ -19,11 +19,11 @@ spec:
     server: https://kubernetes.default.svc
     namespace: gamemetrics
   
-  # Sync policy: Manual sync for production (requires approval)
+  # Sync policy: Automated sync with safeguards
   syncPolicy:
     automated:
-      prune: false     # Don't auto-delete in production
-      selfHeal: false  # Don't auto-heal in production - require manual approval
+      prune: true      # Auto-delete orphaned resources
+      selfHeal: true   # Auto-sync when cluster state diverges from Git
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground

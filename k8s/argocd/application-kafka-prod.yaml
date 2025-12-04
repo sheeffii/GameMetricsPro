@@ -22,7 +22,7 @@ spec:
   # Sync policy: Automated sync for infrastructure with safeguards
   syncPolicy:
     automated:
-      prune: false     # Don't auto-delete Kafka resources (data loss risk with stateful sets)
+      prune: true      # Auto-delete orphaned resources
       selfHeal: true   # Auto-sync when cluster state diverges from Git
       allowEmpty: false  # Prevent deletion of all Kafka resources
     syncOptions:
