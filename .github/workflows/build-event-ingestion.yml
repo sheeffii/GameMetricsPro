@@ -149,17 +149,30 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           echo "Deploying image: ${{ needs.build-and-push.outputs.image-uri }}"
-          kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
-            ${{ env.CONTAINER_NAME }}=${{ needs.build-and-push.outputs.image-uri }} \
-            -n ${{ env.NAMESPACE }}
+          
+          # Check if deployment exists
+          if kubectl get deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} &>/dev/null; then
+            echo "Updating existing deployment..."
+            kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
+              ${{ env.CONTAINER_NAME }}=${{ needs.build-and-push.outputs.image-uri }} \
+              -n ${{ env.NAMESPACE }}
+          else
+            echo "Deployment not found; ensure infrastructure is deployed first"
+            exit 1
+          fi
           
           kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
 
       - name: Verify deployment
         run: |
+          echo "Deployment Status:"
+          kubectl get deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "Pod Status:"
           kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }}
-          kubectl describe deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
-          kubectl logs -n ${{ env.NAMESPACE }} -l app=${{ env.DEPLOYMENT_NAME }} --tail=50
+          echo ""
+          echo "Recent Events:"
+          kubectl get events -n ${{ env.NAMESPACE }} --sort-by='.lastTimestamp' | tail -5
 
   deploy-to-prod:
     name: Deploy to Production (Manual Approval)
@@ -185,10 +198,18 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          echo "Deploying image: ${{ needs.build-and-push.outputs.image-uri }}"
-          kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
-            ${{ env.CONTAINER_NAME }}=${{ needs.build-and-push.outputs.image-uri }} \
-            -n ${{ env.NAMESPACE }}
+          echo "🚀 Deploying to PRODUCTION: ${{ needs.build-and-push.outputs.image-uri }}"
+          
+          # Check if deployment exists
+          if kubectl get deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} &>/dev/null; then
+            echo "Updating existing deployment..."
+            kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
+              ${{ env.CONTAINER_NAME }}=${{ needs.build-and-push.outputs.image-uri }} \
+              -n ${{ env.NAMESPACE }}
+          else
+            echo "Deployment not found; ensure infrastructure is deployed first"
+            exit 1
+          fi
           
           kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=10m
 
@@ -223,9 +244,12 @@ jobs:
       - name: Notify deployment success
         if: success()
         run: |
-          echo "✅ Deployment to production successful!"
+          echo "✅ Production deployment successful!"
           echo "Image: ${{ needs.build-and-push.outputs.image-uri }}"
           echo "Digest: ${{ needs.build-and-push.outputs.image-digest }}"
+          echo ""
+          echo "Deployment Info:"
+          kubectl get deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
 
       - name: Rollback on failure
         if: failure()
@@ -233,3 +257,4 @@ jobs:
           echo "❌ Deployment failed! Rolling back..."
           kubectl rollout undo deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }}
           kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=5m
+          echo "Rollback complete"
