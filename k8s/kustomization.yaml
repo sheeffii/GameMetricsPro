@@ -7,6 +7,8 @@ resources:
   
   # ArgoCD with server resource limits and GitHub credentials (managed via kustomize)
   - argocd/overlays
+  # ArgoCD Applications (app-of-apps + service apps)
+  - argocd/applications
   
   # Secrets (Database, Redis, Kafka)
   - secrets
