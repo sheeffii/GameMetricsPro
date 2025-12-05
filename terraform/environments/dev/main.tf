@@ -141,7 +141,7 @@ module "rds" {
   identifier  = "gamemetrics-${var.environment}"
 
   engine         = "postgres"
-  engine_version = "15.4"
+  engine_version = "15.15"
   instance_class = "db.t3.micro"
 
   allocated_storage     = 50
