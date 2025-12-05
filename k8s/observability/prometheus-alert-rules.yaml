@@ -1,0 +1,252 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  alert-rules.yml: |
+    groups:
+      - name: kubernetes.rules
+        interval: 30s
+        rules:
+          # ==================== KUBERNETES ALERTS ====================
+          - alert: KubernetesNodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kubernetes node not ready (instance {{ $labels.node }})"
+              description: "Node {{ $labels.node }} has been unready for more than 5 minutes."
+          
+          - alert: KubernetesPodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0.1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes pod crash looping (pod {{ $labels.pod }})"
+              description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping."
+          
+          - alert: KubernetesPodNotHealthy
+            expr: min_over_time(sum by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown|Failed"})[15m:1m]) > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes pod not healthy (pod {{ $labels.pod }})"
+              description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-running state for more than 15 minutes."
+          
+          - alert: KubernetesMemoryPressure
+            expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes memory pressure (node {{ $labels.node }})"
+              description: "Node {{ $labels.node }} has MemoryPressure condition."
+          
+          - alert: KubernetesDiskPressure
+            expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes disk pressure (node {{ $labels.node }})"
+              description: "Node {{ $labels.node }} has DiskPressure condition."
+          
+          - alert: KubernetesContainerOomKiller
+            expr: (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1) and ignoring (reason) min_over_time(kube_pod_container_last_terminated_reason{reason="OOMKilled"}[10m]) == 1
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes container OOM killer (namespace {{ $labels.namespace }})"
+              description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has been OOMKilled."
+          
+          - alert: KubernetesJobFailed
+            expr: kube_job_status_failed > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes job failed (namespace {{ $labels.namespace }})"
+              description: "Job {{ $labels.namespace }}/{{ $labels.job_name }} has failed."
+      
+      - name: kafka.rules
+        interval: 30s
+        rules:
+          # ==================== KAFKA ALERTS ====================
+          - alert: KafkaBrokerDown
+            expr: up{job="kafka"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kafka broker down (instance {{ $labels.instance }})"
+              description: "Kafka broker {{ $labels.instance }} is down."
+          
+          - alert: KafkaConsumerGroupLagHigh
+            expr: kafka_consumergroup_lag > 50000
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kafka consumer group lag high (group {{ $labels.consumergroup }})"
+              description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} messages."
+          
+          - alert: KafkaConsumerGroupLagWarning
+            expr: kafka_consumergroup_lag > 10000 and kafka_consumergroup_lag <= 50000
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kafka consumer group lag warning (group {{ $labels.consumergroup }})"
+              description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} messages."
+          
+          - alert: KafkaUnderReplicatedPartitions
+            expr: kafka_server_replicamanager_underreplicatedpartitions > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kafka under-replicated partitions (instance {{ $labels.instance }})"
+              description: "Broker {{ $labels.instance }} has {{ $value }} under-replicated partitions."
+          
+          - alert: KafkaOfflinePartitions
+            expr: kafka_controller_kafkacontroller_offlinepartitionscount > 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kafka offline partitions"
+              description: "Kafka has {{ $value }} offline partitions."
+          
+          - alert: KafkaTopicPartitionIncrease
+            expr: delta(kafka_topic_partitions[1h]) > 0
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kafka topic partition increase (topic {{ $labels.topic }})"
+              description: "Kafka topic {{ $labels.topic }} partitions increased."
+          
+          - alert: KafkaTopicReplicationFactorLessThanMinIsr
+            expr: kafka_server_replicamanager_mininsyncreplicascount < kafka_topic_replication_factor
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kafka replication factor less than min ISR (topic {{ $labels.topic }})"
+              description: "Topic {{ $labels.topic }} replication factor is less than min.insync.replicas."
+      
+      - name: prometheus.rules
+        interval: 30s
+        rules:
+          # ==================== PROMETHEUS ALERTS ====================
+          - alert: PrometheusConfigReloadFailed
+            expr: prometheus_config_last_reload_successful == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus config reload failed (instance {{ $labels.instance }})"
+              description: "Prometheus config reload has failed on {{ $labels.instance }}."
+          
+          - alert: PrometheusRuleEvaluationFailures
+            expr: increase(prometheus_rule_evaluation_failures_total[15m]) > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus rule evaluation failures (instance {{ $labels.instance }})"
+              description: "Prometheus has failed to evaluate rules {{ $value }} times."
+          
+          - alert: PrometheusTargetDown
+            expr: up == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus target down (instance {{ $labels.instance }})"
+              description: "Target {{ $labels.instance }} in job {{ $labels.job }} is down."
+          
+          - alert: PrometheusLargeNumberOfTargets
+            expr: count(up) > 50
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus has {{ $value }} targets"
+              description: "Prometheus has a large number of targets ({{ $value }} targets)."
+      
+      - name: resource.rules
+        interval: 30s
+        rules:
+          # ==================== RESOURCE ALERTS ====================
+          - alert: HighCPUUsage
+            expr: (sum(rate(container_cpu_usage_seconds_total{namespace!=""}[5m])) by (namespace) / sum(kube_pod_container_resource_requests{resource="cpu"}) by (namespace)) > 0.8
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage in namespace {{ $labels.namespace }}"
+              description: "Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of requested CPU."
+          
+          - alert: HighMemoryUsage
+            expr: (sum(container_memory_usage_bytes{namespace!=""}) by (namespace) / sum(kube_pod_container_resource_limits{resource="memory"}) by (namespace)) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage in namespace {{ $labels.namespace }}"
+              description: "Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of allocated memory."
+          
+          - alert: PersistentVolumeUsageHigh
+            expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Persistent volume usage high (volume {{ $labels.persistentvolumeclaim }})"
+              description: "PV {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full."
+          
+          - alert: PersistentVolumeUsageCritical
+            expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.95
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Persistent volume usage critical (volume {{ $labels.persistentvolumeclaim }})"
+              description: "PV {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full."
+      
+      - name: service.rules
+        interval: 30s
+        rules:
+          # ==================== SERVICE ALERTS ====================
+          - alert: ServiceHighErrorRate
+            expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) by (service) / sum(rate(http_requests_total[5m])) by (service)) > 0.05
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Service high error rate (service {{ $labels.service }})"
+              description: "Service {{ $labels.service }} has error rate of {{ $value | humanizePercentage }}."
+          
+          - alert: ServiceHighLatency
+            expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Service high latency (service {{ $labels.service }})"
+              description: "Service {{ $labels.service }} P99 latency is {{ $value }}s."
+          
+          - alert: ServiceDown
+            expr: up{job!~"prometheus|alertmanager"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Service down (service {{ $labels.job }})"
+              description: "Service {{ $labels.job }} is down."

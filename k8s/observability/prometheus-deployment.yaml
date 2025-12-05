@@ -42,7 +42,7 @@ spec:
       volumes:
       - name: config
         configMap:
-          name: prometheus-config
+          name: prometheus-config-with-alertmanager
       - name: storage
         emptyDir: {}
 ---

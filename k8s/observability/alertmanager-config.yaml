@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    
+    route:
+      receiver: "default"
+      group_by: ["alertname", "cluster", "service"]
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      routes:
+        # Critical alerts - immediate notification
+        - match:
+            severity: critical
+          receiver: critical
+          group_wait: 0s
+          repeat_interval: 30m
+        
+        # Warning alerts
+        - match:
+            severity: warning
+          receiver: warning
+          repeat_interval: 2h
+        
+        # Kafka alerts
+        - match_re:
+            alertname: "Kafka.*"
+          receiver: kafka-team
+          group_wait: 30s
+    
+    receivers:
+      - name: "default"
+      
+      - name: "critical"
+      
+      - name: "warning"
+      
+      - name: "kafka-team"
+    
+    inhibit_rules:
+      # Don't alert if cluster is down
+      - source_match:
+          alertname: "KubernetesNodeNotReady"
+        target_match_re:
+          alertname: ".*"
+        equal: ["node"]

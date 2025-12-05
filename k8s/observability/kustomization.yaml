@@ -6,11 +6,14 @@ namespace: monitoring
 resources:
   - namespace.yaml
   - prometheus-rbac.yaml
-  - prometheus-config.yaml
+  - prometheus-config-updated.yaml
   - prometheus-deployment.yaml
+  - prometheus-alert-rules.yaml
   - grafana-config.yaml
   - grafana-deployment.yaml
   - loki-config.yaml
   - loki-deployment.yaml
   - promtail-config.yaml
   - promtail-daemonset.yaml
+  - alertmanager-config.yaml
+  - alertmanager-deployment.yaml
