@@ -21,12 +21,12 @@ metadata:
     app.kubernetes.io/component: event-ingestion
 spec:
   partitions: 2  # Free tier: reduced from 3
-  replicas: 2  # Free tier: 2 replicas (min for HA)
+  replicas: 1  # Free tier: 1 replica (single broker)
   config:
     retention.ms: 604800000  # 7 days
     compression.type: lz4
     max.message.bytes: 1048576  # 1MB max message size
-    min.insync.replicas: 1  # Free tier: 1 (allows writes with 1 replica down)
+    min.insync.replicas: 1  # Free tier: 1 replica
     segment.bytes: 536870912  # 512MB segments (reduced from 1GB)
 ---
 # ----------------------------------------------------------------------------
@@ -41,7 +41,7 @@ metadata:
     app.kubernetes.io/component: event-processing
 spec:
   partitions: 2
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 1209600000  # 14 days (reduced from 30)
     cleanup.policy: compact  # Keep latest value per key
@@ -60,7 +60,7 @@ metadata:
     app.kubernetes.io/component: analytics
 spec:
   partitions: 2
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 1209600000  # 14 days (reduced from 30)
     compression.type: lz4
@@ -78,7 +78,7 @@ metadata:
     app.kubernetes.io/component: leaderboards
 spec:
   partitions: 1  # Single partition for global ordering
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 604800000  # 7 days (reduced from 30)
     compression.type: lz4
@@ -96,7 +96,7 @@ metadata:
     app.kubernetes.io/component: analytics
 spec:
   partitions: 2
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 604800000  # 7 days
     compression.type: lz4
@@ -114,7 +114,7 @@ metadata:
     app.kubernetes.io/component: ml-pipeline
 spec:
   partitions: 1  # Reduced from 2 for free tier
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 86400000  # 1 day (short-lived recommendations)
     compression.type: lz4
@@ -132,7 +132,7 @@ metadata:
     app.kubernetes.io/component: notifications
 spec:
   partitions: 1  # Reduced from 2 for free tier
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 259200000  # 3 days
     compression.type: lz4
@@ -150,7 +150,7 @@ metadata:
     app.kubernetes.io/component: error-handling
 spec:
   partitions: 1  # Single partition for DLQ
-  replicas: 2
+  replicas: 1
   config:
     retention.ms: 604800000  # 7 days (reduced from 30 for free tier)
     compression.type: lz4

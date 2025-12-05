@@ -7,8 +7,10 @@ resources:
   
   # ArgoCD with server resource limits and GitHub credentials (managed via kustomize)
   - argocd/overlays
-  # ArgoCD Applications (app-of-apps + service apps)
-  - argocd/applications
+  # ArgoCD Applications (apply separately or via individual files)
+  - argocd/app-of-apps.yaml
+  - argocd/application-kafka-dev.yaml
+  - argocd/application-event-ingestion-dev.yaml
   
   # Secrets (Database, Redis, Kafka)
   - secrets

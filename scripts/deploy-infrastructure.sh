@@ -152,10 +152,13 @@ if [ "$APPLY_KAFKA" = "true" ]; then
     done
     echo ""
 
-    # Step 7: Wait for Kafka cluster
+    # Step 7: Wait for Kafka cluster (CR Ready + statefulsets)
     echo -e "${GREEN}Step 7: Waiting for Kafka Cluster${NC}"
-    kubectl wait --for=condition=ready --timeout=600s pod -l strimzi.io/cluster=gamemetrics-kafka -n kafka 2>/dev/null || print_warning "Kafka cluster timeout"
-    print_status "Kafka cluster ready"
+    if ! kubectl wait --for=condition=Ready --timeout=600s kafka/gamemetrics-kafka -n kafka 2>/dev/null; then
+        print_warning "Kafka CR not Ready after 600s; checking statefulsets"
+    fi
+    kubectl rollout status statefulset/gamemetrics-kafka-controller -n kafka --timeout=300s 2>/dev/null || print_warning "Controller statefulset not ready"
+    kubectl rollout status statefulset/gamemetrics-kafka-broker -n kafka --timeout=300s 2>/dev/null || print_warning "Broker statefulset not ready"
     echo ""
 
     # Step 8: Wait for Kafka UI
