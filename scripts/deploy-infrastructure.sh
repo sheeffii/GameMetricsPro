@@ -11,6 +11,8 @@ NC='\033[0m' # No Color
 REGION="${AWS_REGION:-us-east-1}"
 CLUSTER_NAME="gamemetrics-dev"
 TERRAFORM_DIR="terraform/environments/dev"
+# Toggle Kafka apply (set APPLY_KAFKA=false to skip Kafka resources)
+APPLY_KAFKA="${APPLY_KAFKA:-true}"
 
 echo -e "${GREEN}=== GameMetrics Infrastructure Deployment ===${NC}"
 echo ""
@@ -129,43 +131,46 @@ done
 print_status "All Kafka CRDs established"
 echo ""
 
-# Step 6: Apply Kafka resources (with retry logic)
-echo -e "${GREEN}Step 6: Applying Kafka cluster and topics${NC}"
-max_retries=3
-retry=0
-while [ $retry -lt $max_retries ]; do
-  if kubectl apply -f k8s/kafka/kafka-cluster.yaml 2>/dev/null && \
-     kubectl apply -f k8s/kafka/topics.yaml 2>/dev/null; then
-    print_status "Kafka cluster and topics applied"
-    break
-  else
-    retry=$((retry + 1))
-    if [ $retry -lt $max_retries ]; then
-      echo "Retrying Kafka resources ($retry/$max_retries)..."
-      sleep 10
-    else
-      print_warning "Failed to apply Kafka resources after $max_retries retries"
-    fi
-  fi
-done
-echo ""
+if [ "$APPLY_KAFKA" = "true" ]; then
+    # Step 6: Apply Kafka resources (with retry logic)
+    echo -e "${GREEN}Step 6: Applying Kafka cluster and topics${NC}"
+    max_retries=3
+    retry=0
+    while [ $retry -lt $max_retries ]; do
+        if kubectl apply -k k8s/kafka/overlays/dev 2>/dev/null; then
+            print_status "Kafka cluster and topics applied"
+            break
+        else
+            retry=$((retry + 1))
+            if [ $retry -lt $max_retries ]; then
+                echo "Retrying Kafka resources ($retry/$max_retries)..."
+                sleep 10
+            else
+                print_warning "Failed to apply Kafka resources after $max_retries retries"
+            fi
+        fi
+    done
+    echo ""
 
-# Step 7: Wait for Kafka cluster
-echo -e "${GREEN}Step 7: Waiting for Kafka Cluster${NC}"
-kubectl wait --for=condition=ready --timeout=600s pod -l strimzi.io/cluster=gamemetrics-kafka -n kafka 2>/dev/null || print_warning "Kafka cluster timeout"
-print_status "Kafka cluster ready"
-echo ""
+    # Step 7: Wait for Kafka cluster
+    echo -e "${GREEN}Step 7: Waiting for Kafka Cluster${NC}"
+    kubectl wait --for=condition=ready --timeout=600s pod -l strimzi.io/cluster=gamemetrics-kafka -n kafka 2>/dev/null || print_warning "Kafka cluster timeout"
+    print_status "Kafka cluster ready"
+    echo ""
 
-# Step 8: Wait for Kafka UI
-echo -e "${GREEN}Step 8: Waiting for Kafka UI${NC}"
-kubectl wait --for=condition=available --timeout=300s deployment/kafka-ui -n kafka 2>/dev/null || print_warning "Kafka UI timeout"
-print_status "Kafka UI ready"
-echo ""
+    # Step 8: Wait for Kafka UI
+    echo -e "${GREEN}Step 8: Waiting for Kafka UI${NC}"
+    kubectl wait --for=condition=available --timeout=300s deployment/kafka-ui -n kafka 2>/dev/null || print_warning "Kafka UI timeout"
+    print_status "Kafka UI ready"
+    echo ""
 
-# Step 9: Verify topics
-echo -e "${GREEN}Step 9: Verifying Kafka Topics${NC}"
-kubectl get kafkatopic -n kafka 2>/dev/null || echo "Topics not yet available"
-echo ""
+    # Step 9: Verify topics
+    echo -e "${GREEN}Step 9: Verifying Kafka Topics${NC}"
+    kubectl get kafkatopic -n kafka 2>/dev/null || echo "Topics not yet available"
+    echo ""
+else
+    print_warning "Kafka apply skipped (APPLY_KAFKA=false)."
+fi
 
 # Step 10: Update Kubernetes secrets from AWS
 echo -e "${GREEN}Step 10: Updating Kubernetes secrets from AWS${NC}"

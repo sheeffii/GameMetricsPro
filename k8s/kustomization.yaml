@@ -14,9 +14,6 @@ resources:
   # Strimzi Operator (Kafka operator)
   - strimzi/base
   
-  # Kafka Cluster (KRaft mode)
-  - kafka/overlays/dev
-  
   # Kafka UI
   - kafka-ui
   
