@@ -224,7 +224,7 @@ func (s *Server) ingestEvent(c *gin.Context) {
 	eventJSON, err := json.Marshal(eventWithMetadata)
 	if err != nil {
 		eventsFailed.Inc()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to serialize event"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error":"failed to serialize event"})
 		return
 	}
 
