@@ -38,7 +38,7 @@ class StatisticsAggregator:
         self.stats_buffer = defaultdict(dict)
         self.buffer_size = int(os.getenv('BUFFER_SIZE', '100'))
         self.buffer_timeout = timedelta(
-            seconds=int(os.getenv('BUFFER_TIMEOUT_SECONDS', '30'))
+            seconds=int(os.getenv(' BUFFER_TIMEOUT_SECONDS', '30'))
         )
         self.last_flush = datetime.utcnow()
         
