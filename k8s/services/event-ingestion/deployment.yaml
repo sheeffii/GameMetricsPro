@@ -16,6 +16,10 @@ spec:
       labels:
         app: event-ingestion
         version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: event-ingestion

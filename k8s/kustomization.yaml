@@ -21,6 +21,9 @@ resources:
   # Kafka UI
   - kafka-ui
   
+  # Observability Stack (Prometheus, Grafana, Loki)
+  - observability
+  
   # Application Services
   - services/event-ingestion
 
