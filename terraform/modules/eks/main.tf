@@ -252,6 +252,16 @@ resource "aws_eks_addon" "main" {
   resolve_conflicts_on_update = "PRESERVE"
   service_account_role_arn    = try(each.value.service_account_role_arn, null)
 
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "20m"
+  }
+
+  depends_on = [
+    aws_eks_node_group.main
+  ]
+
   tags = var.tags
 }
 

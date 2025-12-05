@@ -43,8 +43,33 @@ cd "$TERRAFORM_DIR"
 # Initialize Terraform
 terraform init -upgrade
 
-# Apply infrastructure
-terraform apply -auto-approve
+# Check for existing resources and import if needed
+echo "Checking for existing resources..."
+set +e
+EXISTING_ELASTICACHE=$(aws elasticache describe-replication-groups --replication-group-id gamemetrics-dev --region "$REGION" 2>/dev/null)
+if [ $? -eq 0 ]; then
+    print_warning "ElastiCache cluster already exists, importing..."
+    terraform import 'module.elasticache.aws_elasticache_replication_group.main' gamemetrics-dev 2>/dev/null || true
+fi
+set -e
+
+# Apply infrastructure with retry on specific errors
+echo "Applying infrastructure..."
+MAX_RETRIES=2
+for i in $(seq 1 $MAX_RETRIES); do
+    if terraform apply -auto-approve; then
+        break
+    else
+        EXIT_CODE=$?
+        if [ $i -lt $MAX_RETRIES ]; then
+            print_warning "Terraform apply failed (attempt $i/$MAX_RETRIES), retrying..."
+            sleep 10
+        else
+            print_error "Terraform apply failed after $MAX_RETRIES attempts"
+            exit $EXIT_CODE
+        fi
+    fi
+done
 
 # Get outputs
 export EKS_CLUSTER_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "$CLUSTER_NAME")
@@ -90,11 +115,14 @@ echo ""
 
 # Step 5: Wait for Strimzi operator to be ready
 echo -e "${GREEN}Step 5: Waiting for Strimzi Operator to register CRDs${NC}"
+# Give extra time for operator to fully initialize
+sleep 15
 kubectl wait --for=condition=available --timeout=300s deployment/strimzi-cluster-operator -n kafka 2>/dev/null || print_warning "Strimzi operator timeout"
 print_status "Strimzi operator ready"
 
 # Wait for CRDs to be established
 echo "Waiting for Kafka CRDs to be established..."
+sleep 10
 for crd in kafka kafkatopic kafkanodepool; do
   kubectl wait --for condition=established --timeout=300s crd/"${crd}s.kafka.strimzi.io" 2>/dev/null || print_warning "CRD ${crd} timeout"
 done

@@ -67,7 +67,7 @@ variable "multi_az" {
 variable "backup_retention_period" {
   description = "Backup retention period in days"
   type        = number
-  default     = 7
+  default     = 1
 }
 
 variable "backup_window" {
