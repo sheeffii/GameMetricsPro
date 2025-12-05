@@ -5,4 +5,4 @@ namespace: argocd
 resources:
   # Official stable install manifest
   - https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-  - namespace.yaml
+  # Namespace created via k8s/namespaces/namespaces.yml to avoid duplicate resource ids
