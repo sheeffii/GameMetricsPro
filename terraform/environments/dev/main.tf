@@ -121,9 +121,10 @@ module "eks" {
     vpc-cni = {
       most_recent = true
     }
-    aws-ebs-csi-driver = {
-      most_recent = true
-    }
+    # aws-ebs-csi-driver disabled for MVP testing - enable when persistent volumes needed
+    # aws-ebs-csi-driver = {
+    #   most_recent = true
+    # }
   }
 
   # Enable cluster logging
@@ -152,7 +153,7 @@ module "rds" {
   port          = 5432
 
   multi_az                = false
-  backup_retention_period = 7
+  backup_retention_period = 1
   backup_window           = "03:00-04:00"
   maintenance_window      = "mon:04:00-mon:05:00"
 
