@@ -31,26 +31,26 @@ spec:
       log.segment.bytes: 1073741824  # 1GB segments
       log.retention.check.interval.ms: 300000
       
-      # Auto-create topics - FALLBACK ONLY (prefer KafkaTopic CRDs)
-      # If a producer sends to non-existent topic, Kafka will create it
-      # But topic management should be done via KafkaTopic CRDs above
-      auto.create.topics.enable: true
+      # Auto-create topics - DISABLED (production requirement)
+      # Topics must be created via KafkaTopic CRDs
+      # This prevents accidental topic creation
+      auto.create.topics.enable: false
 
   # Entity Operator manages topics and users via Kubernetes CRDs
   entityOperator:
     topicOperator:
       resources:
         requests:
-          memory: 256Mi
-          cpu: 250m
+          memory: 128Mi
+          cpu: 100m
         limits:
-          memory: 512Mi
-          cpu: 500m
+          memory: 256Mi
+          cpu: 300m
     userOperator:
       resources:
         requests:
-          memory: 256Mi
-          cpu: 250m
+          memory: 128Mi
+          cpu: 100m
         limits:
-          memory: 512Mi
-          cpu: 500m
+          memory: 256Mi
+          cpu: 300m
