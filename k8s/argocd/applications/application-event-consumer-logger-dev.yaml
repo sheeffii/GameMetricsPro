@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-consumer-logger-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: consumer-logger=647523695124.dkr.ecr.us-east-1.amazonaws.com/event-consumer-logger
+    # Best for ECR when you keep pushing the same tag (e.g. :latest): rollouts happen via digest change
+    argocd-image-updater.argoproj.io/consumer-logger.update-strategy: digest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: gamemetrics
+  source:
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/services/event-consumer-logger
+    kustomize:
+      images:
+        - 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-consumer-logger:latest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamemetrics
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+  revisionHistoryLimit: 10
