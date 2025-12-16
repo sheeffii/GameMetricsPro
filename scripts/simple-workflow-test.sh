@@ -6,7 +6,9 @@ echo ""
 
 # Get pod names
 DB_POD=$(kubectl get pods -n gamemetrics -l app=timescaledb -o jsonpath='{.items[0].metadata.name}')
-KAFKA_POD=$(kubectl get pods -n kafka -l strimzi.io/cluster=gamemetrics-kafka -o jsonpath='{.items[0].metadata.name}')
+KAFKA_POD=$(kubectl get pods -n kafka -l strimzi.io/cluster=gamemetrics-kafka,strimzi.io/broker-role=true -o jsonpath='{.items[0].metadata.name}')
+
+EVENT_ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
 
 echo "DB Pod: $DB_POD"
 echo "Kafka Pod: $KAFKA_POD"
@@ -19,7 +21,7 @@ kubectl exec $DB_POD -n gamemetrics -- psql -U postgres -d gamemetrics -c "SELEC
 # Test 2: Send event to Kafka
 echo ""
 echo "Test 2: Sending test event to Kafka..."
-kubectl exec $KAFKA_POD -n kafka -- bash -c 'echo "{\"event_id\":\"test-123\",\"event_type\":\"login\",\"player_id\":\"player1\"}" | bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic player.events.raw' || exit 1
+kubectl exec $KAFKA_POD -n kafka -- bash -c "echo '{\"event_id\":\"$EVENT_ID\",\"event_type\":\"login\",\"player_id\":\"player1\"}' | bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic player.events.raw" || exit 1
 
 # Test 3: Check if message is in Kafka
 echo ""
@@ -32,7 +34,7 @@ echo "Test 4: Waiting 10 seconds for consumer to process..."
 sleep 10
 
 echo "Checking database for events..."
-kubectl exec $DB_POD -n gamemetrics -- psql -U postgres -d gamemetrics -c "SELECT COUNT(*) as total_events FROM events; SELECT event_id, event_type FROM events ORDER BY created_at DESC LIMIT 3;"
+kubectl exec $DB_POD -n gamemetrics -- psql -U postgres -d gamemetrics -c "SELECT COUNT(*) as total_events FROM events; SELECT event_id, event_type FROM events WHERE event_id = '$EVENT_ID'::uuid; SELECT event_id, event_type FROM events ORDER BY created_at DESC LIMIT 3;"
 
 echo ""
 echo "✅ Test complete!"
