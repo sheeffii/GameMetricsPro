@@ -5,6 +5,10 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: event-ingestion=647523695124.dkr.ecr.us-east-1.amazonaws.com/event-ingestion-service
+    argocd-image-updater.argoproj.io/event-ingestion.update-strategy: latest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: gamemetrics
   
@@ -13,6 +17,9 @@ spec:
     repoURL: https://github.com/sheeffii/GameMetricsPro.git
     targetRevision: main
     path: k8s/services/event-ingestion
+    kustomize:
+      images:
+        - 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-ingestion-service:latest
   
   # Destination: Target Kubernetes cluster and namespace
   destination:

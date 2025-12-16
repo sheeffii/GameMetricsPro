@@ -5,6 +5,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argoproj.io/argocd
+  annotations:
+    argocd.argoproj.io/kustomize-build-options: "--load-restrictor=LoadRestrictionsNone"
 spec:
   project: gamemetrics
   
@@ -19,12 +21,10 @@ spec:
     server: https://kubernetes.default.svc
     namespace: argocd
   
-  # Sync policy: Automated with safeguards
+  # Sync policy: Manual sync via GitHub Actions webhook (instant sync)
+  # Automated sync disabled to use GitHub Actions webhook for instant deployment
   syncPolicy:
-    automated:
-      prune: true      # Auto-delete orphaned ArgoCD applications
-      selfHeal: true   # Auto-sync when cluster state diverges from Git
-      allowEmpty: false
+    # automated: false  # Disabled - using GitHub Actions webhook instead
     syncOptions:
       - CreateNamespace=true
     retry:
@@ -33,6 +33,8 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  # Note: Sync is triggered instantly via .github/workflows/argocd-sync-webhook.yml
+  # This eliminates the 3-minute polling delay
   
   # Revision history
   revisionHistoryLimit: 10

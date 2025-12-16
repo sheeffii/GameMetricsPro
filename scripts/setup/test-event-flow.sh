@@ -1,6 +1,26 @@
 #!/bin/bash
-
-# Test Event Flow - Sends a test event through the entire pipeline
+#
+# GameMetrics Pro - End-to-End Event Flow Test Script
+# 
+# This script tests the complete event processing pipeline:
+# 1. Sends a test event to the event-ingestion service
+# 2. Verifies event is received and validated
+# 3. Checks event appears in Kafka topic
+# 4. Verifies event processor is running
+# 5. Provides monitoring guidance
+#
+# Usage:
+#   ./scripts/setup/test-event-flow.sh
+#
+# Prerequisites:
+#   - kubectl configured and connected
+#   - event-ingestion service deployed and running
+#   - Kafka cluster running
+#   - jq installed (for JSON parsing)
+#   - uuidgen available (for event ID generation)
+#
+# Note: This script sets up a port-forward and cleans it up on exit.
+#
 
 set -e
 

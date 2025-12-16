@@ -1,0 +1,396 @@
+# CI/CD Testing Checklist - Quick Start
+
+## Phase 1: GitHub Secrets Setup ⚙️
+
+### Step 1: Create IAM User in AWS Console
+
+1. Open AWS Console: https://console.aws.amazon.com
+2. Go to IAM → Users → Create user
+3. Username: `github-actions-ci`
+4. Permissions: Attach these policies:
+   - ✅ **AmazonEC2ContainerRegistryPowerUser**
+   - ✅ **AmazonEKSClusterPolicy**
+5. Create access keys:
+   - Click on user → Security credentials → Create access key
+   - Select: "Application running outside AWS"
+   - **Save the keys immediately!**
+
+### Step 2: Add Secrets to GitHub
+
+1. Go to: https://github.com/YOUR-USERNAME/RealtimeGaming
+2. Click: Settings → Secrets and variables → Actions
+3. Add these 3 secrets:
+
+```
+Secret 1:
+Name: AWS_ACCESS_KEY_ID
+Value: <Your Access Key ID from Step 1>
+
+Secret 2:
+Name: AWS_SECRET_ACCESS_KEY
+Value: <Your Secret Access Key from Step 1>
+
+Secret 3:
+Name: AWS_ACCOUNT_ID
+Value: 647523695124
+```
+
+**Verification:** You should see 3 secrets listed in GitHub.
+
+---
+
+## Phase 2: Verify Current Deployment Status 🔍
+
+```powershell
+# Check if deployment exists
+kubectl get deployment -n gamemetrics
+
+# Expected output:
+# NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+# event-ingestion   2/2     2            2           XX
+
+# Check current image
+kubectl get deployment event-ingestion -n gamemetrics -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+# Expected: 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-ingestion-service:latest
+
+# Check container name
+kubectl get deployment event-ingestion -n gamemetrics -o jsonpath='{.spec.template.spec.containers[0].name}'
+
+# Expected: event-ingestion
+
+# Check labels
+kubectl get deployment event-ingestion -n gamemetrics -o jsonpath='{.spec.selector.matchLabels}'
+
+# Expected: {"app":"event-ingestion"}
+```
+
+**Status:** ✅ All values match workflow configuration
+
+---
+
+## Phase 3: Push Workflows to GitHub 📤
+
+```powershell
+# Make sure you're in repo root
+cd c:\Users\Shefqet\Desktop\RealtimeGaming
+
+# Check Git status
+git status
+
+# Add workflow files
+git add .github/workflows/
+
+# Add documentation files
+git add *.txt
+
+# Commit
+git commit -m "Configure CI/CD workflows with GitHub Actions"
+
+# Push to main branch
+git push origin main
+```
+
+**If repository doesn't exist yet:**
+
+```powershell
+# Initialize Git (if not already done)
+git init
+git add .
+git commit -m "Initial commit with CI/CD"
+
+# Create repository on GitHub (via web UI)
+# Then connect:
+git remote add origin https://github.com/YOUR-USERNAME/RealtimeGaming.git
+git branch -M main
+git push -u origin main
+```
+
+---
+
+## Phase 4: Create Develop Branch 🌿
+
+```powershell
+# Create and push develop branch
+git checkout -b develop
+git push -u origin develop
+
+# Switch back to main if needed
+git checkout main
+```
+
+---
+
+## Phase 5: Test CI/CD Pipeline 🧪
+
+### Option A: Trigger via Code Change (Recommended)
+
+```powershell
+# Switch to develop branch
+git checkout develop
+
+# Make a small change to test CI/CD
+echo "// CI/CD test" >> services/event-ingestion-service/cmd/main.go
+
+# Commit and push
+git add services/event-ingestion-service/cmd/main.go
+git commit -m "test: Trigger CI/CD pipeline"
+git push origin develop
+```
+
+### Option B: Trigger Manually via GitHub UI
+
+1. Go to: https://github.com/YOUR-USERNAME/RealtimeGaming/actions
+2. Click: "Build and Deploy Event Ingestion Service"
+3. Click: "Run workflow"
+4. Select: "develop" branch
+5. Click: "Run workflow" button
+
+---
+
+## Phase 6: Monitor Workflow Execution 👀
+
+1. **Go to Actions Tab:**
+   https://github.com/YOUR-USERNAME/RealtimeGaming/actions
+
+2. **Click on the running workflow** (yellow spinner icon)
+
+3. **Watch the jobs:**
+   - ✅ build-and-push
+     - Checkout code
+     - Configure AWS credentials
+     - Login to Amazon ECR
+     - Build and push Docker image
+     - Set image URI output
+   - ✅ deploy-to-dev (if on develop branch)
+     - Deploy to Kubernetes
+     - Verify deployment
+
+4. **Expected Timeline:**
+   - Build: ~3-4 minutes
+   - Deploy: ~1-2 minutes
+   - Total: ~5-6 minutes
+
+---
+
+## Phase 7: Verify Deployment in Kubernetes ✅
+
+```powershell
+# Check if workflow updated the deployment
+kubectl get deployment event-ingestion -n gamemetrics
+
+# Check the new image
+kubectl describe deployment event-ingestion -n gamemetrics | Select-String "Image:"
+
+# Expected: Image contains new tag like "develop-abc123" or "develop-<commit-sha>"
+
+# Check pods are running
+kubectl get pods -n gamemetrics -l app=event-ingestion
+
+# Check pod logs for any errors
+kubectl logs -n gamemetrics -l app=event-ingestion --tail=50
+
+# Test the API
+kubectl port-forward -n gamemetrics svc/event-ingestion-service 8080:80
+
+# Open browser: http://localhost:8080/swagger
+# Try sending a test event
+```
+
+---
+
+## Phase 8: Common Issues and Solutions 🔧
+
+### Issue 1: "Error: Credentials could not be loaded"
+
+**Cause:** AWS secrets not configured correctly
+
+**Fix:**
+1. Go to GitHub → Settings → Secrets → Actions
+2. Verify all 3 secrets are present:
+   - AWS_ACCESS_KEY_ID
+   - AWS_SECRET_ACCESS_KEY
+   - AWS_ACCOUNT_ID
+3. Delete and recreate if needed (no spaces, exact names)
+
+### Issue 2: "Error: repository does not exist"
+
+**Cause:** ECR repository not created
+
+**Fix:**
+```powershell
+# Create ECR repository
+aws ecr create-repository --repository-name event-ingestion-service --region us-east-1
+
+# Or check if it exists
+aws ecr describe-repositories --repository-names event-ingestion-service --region us-east-1
+```
+
+### Issue 3: "Error: deployment not found"
+
+**Cause:** Deployment name mismatch (workflow uses wrong name)
+
+**Fix:** Already fixed in workflow - uses `event-ingestion` (not `event-ingestion-service`)
+
+### Issue 4: "Error: User is not authorized"
+
+**Cause:** IAM user lacks permissions
+
+**Fix:**
+```powershell
+# Test IAM permissions locally
+$env:AWS_ACCESS_KEY_ID="YOUR_KEY"
+$env:AWS_SECRET_ACCESS_KEY="YOUR_SECRET"
+
+# Test ECR access
+aws ecr describe-repositories --region us-east-1
+
+# Test EKS access
+aws eks describe-cluster --name gamemetrics-dev --region us-east-1
+
+# If either fails, add permissions to IAM user
+```
+
+### Issue 5: Workflow triggered but nothing happened
+
+**Cause:** Branch filter didn't match
+
+**Fix:**
+- Workflow triggers on `main` and `develop` branches only
+- Check you pushed to the correct branch:
+  ```powershell
+  git branch --show-current
+  ```
+
+---
+
+## Phase 9: Test Production Deployment (Optional) 🚀
+
+```powershell
+# Merge develop to main
+git checkout main
+git pull origin main
+git merge develop
+git push origin main
+
+# Go to GitHub Actions
+# Workflow will:
+# 1. Build image with "main" tag
+# 2. Push to ECR
+# 3. Wait for manual approval (environment: production)
+
+# To approve:
+# 1. Go to Actions tab
+# 2. Click on the workflow run
+# 3. Click "Review deployments"
+# 4. Check "production"
+# 5. Click "Approve and deploy"
+```
+
+---
+
+## Quick Commands Reference 📝
+
+```powershell
+# Check GitHub Actions status from CLI (requires gh CLI)
+gh workflow list
+gh run list
+gh run view <run-id>
+
+# Check deployment status
+kubectl get deployment event-ingestion -n gamemetrics -o wide
+
+# Get current image in deployment
+kubectl get deployment event-ingestion -n gamemetrics -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+# Manually rollback if needed
+kubectl rollout undo deployment/event-ingestion -n gamemetrics
+kubectl rollout status deployment/event-ingestion -n gamemetrics
+
+# Check ECR images
+aws ecr describe-images --repository-name event-ingestion-service --region us-east-1 | Select-String "imageTag"
+
+# Test API health
+kubectl port-forward -n gamemetrics svc/event-ingestion-service 8080:80
+curl http://localhost:8080/health/live
+curl http://localhost:8080/health/ready
+```
+
+---
+
+## Success Checklist ✅
+
+- [ ] IAM user `github-actions-ci` created
+- [ ] Access keys generated and saved
+- [ ] 3 secrets added to GitHub repository
+- [ ] Workflow files pushed to GitHub
+- [ ] Develop branch created and pushed
+- [ ] Test commit pushed to develop branch
+- [ ] GitHub Actions workflow triggered
+- [ ] Workflow completed successfully (green checkmark)
+- [ ] Docker image pushed to ECR
+- [ ] Kubernetes deployment updated
+- [ ] Pods running with new image
+- [ ] Health checks passing
+- [ ] Swagger UI accessible
+
+---
+
+## Timeline Expectations ⏱️
+
+| Step | Time | Status |
+|------|------|--------|
+| Create IAM user | 2 min | Manual |
+| Add GitHub secrets | 1 min | Manual |
+| Push to GitHub | 1 min | Manual |
+| Build Docker image | 3-4 min | Automatic |
+| Push to ECR | 30 sec | Automatic |
+| Deploy to Kubernetes | 1-2 min | Automatic |
+| Verify deployment | 30 sec | Manual |
+| **Total** | **8-10 min** | |
+
+---
+
+## What's Next After CI Works? 🎯
+
+1. ✅ **CI/CD Working** (GitHub Actions)
+2. ⏳ **Configure ArgoCD** (GitOps for Kubernetes manifests)
+3. ⏳ **Install External Secrets Operator** (Automatic secret sync)
+4. ⏳ **Apply Kafka Entity Operator** (Automatic topic creation)
+5. ⏳ **Test Complete Pipeline** (Code → Build → Deploy → Verify)
+
+---
+
+## Need Help? 🆘
+
+### View GitHub Actions Logs
+
+1. Go to: https://github.com/YOUR-USERNAME/RealtimeGaming/actions
+2. Click on failed workflow
+3. Click on red X step
+4. Read error message
+
+### View Kubernetes Logs
+
+```powershell
+kubectl describe deployment event-ingestion -n gamemetrics
+kubectl get events -n gamemetrics --sort-by='.lastTimestamp'
+kubectl logs -n gamemetrics -l app=event-ingestion --tail=100
+```
+
+### Test AWS Credentials
+
+```powershell
+$env:AWS_ACCESS_KEY_ID="YOUR_KEY"
+$env:AWS_SECRET_ACCESS_KEY="YOUR_SECRET"
+
+aws sts get-caller-identity
+aws ecr describe-repositories --region us-east-1
+aws eks describe-cluster --name gamemetrics-dev --region us-east-1
+```
+
+---
+
+**You're ready to set up CI/CD!** 🚀
+
+**Start with Phase 1 (GitHub Secrets) and work through each phase in order.**

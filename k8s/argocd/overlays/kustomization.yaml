@@ -3,8 +3,13 @@ kind: Kustomization
 
 resources:
   - ../base
+  - project-gamemetrics.yaml
   - github-repo-creds.yaml
 
 # patchesStrategicMerge is deprecated; use patches
 patches:
   - path: argocd-server-resources-patch.yaml
+    target:
+      kind: Deployment
+      name: argocd-server
+      namespace: argocd

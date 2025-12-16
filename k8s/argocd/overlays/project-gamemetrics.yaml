@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gamemetrics
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argoproj.io/argocd
+spec:
+  description: GameMetrics Real-time Event Processing Platform
+  sourceRepos:
+    - 'https://github.com/sheeffii/GameMetricsPro.git'
+    - '*'
+  destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+    - namespace: gamemetrics
+      server: https://kubernetes.default.svc
+    - namespace: kafka
+      server: https://kubernetes.default.svc
+    - namespace: databases
+      server: https://kubernetes.default.svc
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: PersistentVolumeClaim
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: kafka.strimzi.io
+      kind: Kafka
+    - group: kafka.strimzi.io
+      kind: KafkaNodePool
+    - group: kafka.strimzi.io
+      kind: KafkaTopic
+    - group: kafka.strimzi.io
+      kind: KafkaUser
+    - group: argoproj.io
+      kind: Application
+    - group: argoproj.io
+      kind: AppProject
+  orphanedResources:
+    warn: true
+  roles:
+    - name: developer
+      description: Developers can view and sync dev applications
+      policies:
+        - p, proj:gamemetrics:developer, applications, get, gamemetrics/*, allow
+        - p, proj:gamemetrics:developer, applications, sync, gamemetrics/*-dev, allow
+      groups:
+        - developers
+    - name: admin
+      description: Admins have full control over all applications
+      policies:
+        - p, proj:gamemetrics:admin, applications, *, gamemetrics/*, allow
+      groups:
+        - admins

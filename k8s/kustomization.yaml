@@ -12,6 +12,9 @@ resources:
   - argocd/application-kafka-dev.yaml
   - argocd/application-event-ingestion-dev.yaml
   
+  # ArgoCD Image Updater (auto-updates images from ECR)
+  - argocd-image-updater/overlays/dev
+  
   # Secrets (Database, Redis, Kafka)
   - secrets
   
@@ -24,8 +27,12 @@ resources:
   # Observability Stack (Prometheus, Grafana, Loki)
   - observability
   
-  # Application Services
+  # Application Services (deploy core services directly)
   - services/event-ingestion
+  - services/notification-service
+
+  # HPAs for key services
+  - hpa
 
 # Note: commonLabels can break existing deployments with immutable selectors
 # Use commonAnnotations instead for metadata-only changes

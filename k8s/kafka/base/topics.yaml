@@ -20,14 +20,14 @@ metadata:
     strimzi.io/cluster: gamemetrics-kafka
     app.kubernetes.io/component: event-ingestion
 spec:
-  partitions: 2  # Free tier: reduced from 3
-  replicas: 1  # Free tier: 1 replica (single broker)
+  partitions: 2  # Free tier: reduced from 12 (production)
+  replicas: 1  # Free tier: 1 replica (single broker) - Production: 3
   config:
     retention.ms: 604800000  # 7 days
     compression.type: lz4
     max.message.bytes: 1048576  # 1MB max message size
-    min.insync.replicas: 1  # Free tier: 1 replica
-    segment.bytes: 536870912  # 512MB segments (reduced from 1GB)
+    min.insync.replicas: 1  # Free tier: 1 replica - Production: 2
+    segment.bytes: 536870912  # 512MB segments
 ---
 # ----------------------------------------------------------------------------
 # PROCESSED EVENTS (After validation/enrichment)
@@ -40,13 +40,13 @@ metadata:
     strimzi.io/cluster: gamemetrics-kafka
     app.kubernetes.io/component: event-processing
 spec:
-  partitions: 2
-  replicas: 1
+  partitions: 2  # Free tier: reduced from 6 (production)
+  replicas: 1  # Free tier: 1 replica - Production: 3
   config:
-    retention.ms: 1209600000  # 14 days (reduced from 30)
+    retention.ms: 1209600000  # 14 days (reduced from 30 for free tier)
     cleanup.policy: compact  # Keep latest value per key
     compression.type: lz4
-    min.insync.replicas: 1
+    min.insync.replicas: 1  # Free tier: 1 replica - Production: 2
 ---
 # ----------------------------------------------------------------------------
 # PLAYER STATISTICS (Aggregated metrics)
@@ -113,12 +113,12 @@ metadata:
     strimzi.io/cluster: gamemetrics-kafka
     app.kubernetes.io/component: ml-pipeline
 spec:
-  partitions: 1  # Reduced from 2 for free tier
-  replicas: 1
+  partitions: 1  # Free tier: reduced from 6 (production)
+  replicas: 1  # Free tier: 1 replica - Production: 3
   config:
     retention.ms: 86400000  # 1 day (short-lived recommendations)
     compression.type: lz4
-    min.insync.replicas: 1
+    min.insync.replicas: 1  # Free tier: 1 replica - Production: 2
 ---
 # ----------------------------------------------------------------------------
 # NOTIFICATIONS (Push notifications, emails)

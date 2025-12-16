@@ -1,4 +1,24 @@
 #!/bin/bash
+#
+# GameMetrics Pro - Test Events Sender Script
+# 
+# This script sends test events to the event-ingestion service for testing purposes.
+# It creates various event types (login, logout, level_up, purchase, etc.) and sends
+# them to the service via port-forwarding.
+#
+# Usage:
+#   ./scripts/send-test-events.sh [num_events]
+#   Example: ./scripts/send-test-events.sh 50
+#
+# Prerequisites:
+#   - kubectl configured and connected
+#   - event-ingestion service deployed and running
+#   - jq installed (for JSON parsing)
+#
+# Note: This is a testing/development script. For production load testing,
+# use scripts/load_test_events.sh or k6 scripts.
+#
+
 set -e
 
 # Configuration

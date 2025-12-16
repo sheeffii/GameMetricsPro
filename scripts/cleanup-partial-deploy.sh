@@ -1,5 +1,19 @@
 #!/bin/bash
-# Cleanup script for partial/failed deployments
+#
+# GameMetrics Pro - Partial Deployment Cleanup Script
+# 
+# This script helps clean up resources from failed or partial deployments.
+# Currently handles ElastiCache clusters that may prevent new deployments.
+#
+# Usage:
+#   ./scripts/cleanup-partial-deploy.sh
+#
+# Environment Variables:
+#   AWS_REGION - AWS region (default: us-east-1)
+#
+# Note: This script prompts for confirmation before deleting resources.
+#
+
 set -e
 
 REGION="${AWS_REGION:-us-east-1}"

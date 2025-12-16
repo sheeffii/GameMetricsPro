@@ -1,0 +1,50 @@
+name: Trigger ArgoCD Webhook (Alternative Method)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/**'
+      - 'argocd/**'
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-argocd-webhook:
+    name: Trigger ArgoCD Webhook
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger ArgoCD webhook
+        run: |
+          # Get webhook URL from secrets
+          WEBHOOK_URL="${{ secrets.ARGOCD_WEBHOOK_URL }}"
+          
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "⚠️ ARGOCD_WEBHOOK_URL secret not set"
+            echo "Using ArgoCD CLI method instead..."
+            exit 0
+          fi
+          
+          # Trigger webhook
+          curl -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": {
+                "name": "${{ github.repository }}",
+                "full_name": "${{ github.repository }}"
+              },
+              "ref": "${{ github.ref }}",
+              "commits": [{
+                "id": "${{ github.sha }}",
+                "message": "${{ github.event.head_commit.message }}"
+              }]
+            }'
+          
+          echo "✅ Webhook triggered successfully"
+
+
+

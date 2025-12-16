@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-image-updater-config
+  namespace: argocd-image-updater-system
+$patch: replace
+data:
+  log.level: info
+  log.format: text
+  argocd.grpc_web: "true"
+  argocd.insecure: "true"
+  argocd.plaintext: "false"
+  argocd.server_addr: "argocd-server.argocd.svc.cluster.local"
+  interval: "2m"
+  applications_api: "argocd"
+  registries.conf: |
+    registries:
+    - name: ECR
+      prefix: 647523695124.dkr.ecr.us-east-1.amazonaws.com
+      api_url: https://647523695124.dkr.ecr.us-east-1.amazonaws.com
+      credentials: ext:/scripts/aws-ecr-creds.sh
+      credsexpire: 10h
+      default: true

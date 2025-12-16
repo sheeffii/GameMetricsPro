@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-image-updater
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applications/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-image-updater
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-image-updater
+subjects:
+  - kind: ServiceAccount
+    name: argocd-image-updater
+    namespace: argocd
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-image-updater-config
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-image-updater
+    app.kubernetes.io/part-of: argocd-image-updater
+  
+data:
+    config.yaml: |
+      log:
+        level: info
+      argocd:
+        server: argocd-server.argocd.svc.cluster.local:443
+        insecure: true
+      registries:
+        - name: ecr
+          apiKind: aws
+          prefix: 647523695124.dkr.ecr.us-east-1.amazonaws.com
+          region: us-east-1
+      applicationsAPIKind: argocd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-image-updater
+    app.kubernetes.io/part-of: argocd-image-updater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-image-updater
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argocd-image-updater
+        app.kubernetes.io/part-of: argocd-image-updater
+    spec:
+      serviceAccountName: argocd-image-updater
+      containers:
+        - name: argocd-image-updater
+          image: quay.io/argoprojlabs/argocd-image-updater:v1.0.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - run
+          env:
+            - name: ARGOCD_GRPC_WEB
+              value: "true"
+            - name: ARGOCD_INSECURE
+              value: "true"
+            - name: ARGOCD_USERNAME
+              value: "admin"
+            - name: ARGOCD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-initial-admin-secret
+                  key: password
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: argocd-image-updater-config
+            items:
+              - key: config.yaml
+                path: config.yaml

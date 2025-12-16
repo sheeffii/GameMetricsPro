@@ -1,0 +1,60 @@
+# ============================================================================
+# Production Applications - Manual Sync with Sync Windows
+# Free Tier Optimized - Manual approval required for production
+# ============================================================================
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-ingestion-service-prod
+  namespace: argocd
+  labels:
+    app: event-ingestion-service
+    environment: production
+spec:
+  project: gamemetrics
+  source:
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/services/event-ingestion
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamemetrics
+  syncPolicy:
+    # Manual sync for production - no automated sync
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    # Sync windows - only allow syncs during maintenance window
+    syncWindows:
+      - kind: allow
+        schedule: '0 2 * * *'  # 2 AM UTC daily
+        duration: 2h
+        applications:
+          - event-ingestion-service-prod
+        manualSync: true
+      - kind: deny
+        schedule: '* * * * *'  # Deny all other times
+        duration: 24h
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  # Health checks
+  healthChecks:
+    - apiVersion: v1
+      kind: Service
+      name: event-ingestion-service
+      namespace: gamemetrics
+  revisionHistoryLimit: 10
+  # Ignore HPA-controlled replicas
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+

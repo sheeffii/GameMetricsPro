@@ -1,7 +1,23 @@
 #!/bin/bash
-
-# Quick Access Script for Observability Stack
-# Usage: ./scripts/access-monitoring.sh [grafana|prometheus|all]
+#
+# GameMetrics Pro - Monitoring Access Script
+# 
+# This script provides quick access to observability tools via port-forwarding:
+# - Grafana (dashboards, metrics, logs)
+# - Prometheus (direct metrics queries)
+# - Kafka UI (Kafka cluster management)
+#
+# Usage:
+#   ./scripts/access-monitoring.sh [grafana|prometheus|kafka-ui|all]
+#   Example: ./scripts/access-monitoring.sh grafana
+#
+# Prerequisites:
+#   - kubectl configured and connected
+#   - Monitoring namespace must exist (deployed via production-deploy.sh)
+#   - Kafka namespace must exist (for Kafka UI)
+#
+# Note: Port-forwarding runs in foreground. Use Ctrl+C to stop.
+#
 
 set -e
 

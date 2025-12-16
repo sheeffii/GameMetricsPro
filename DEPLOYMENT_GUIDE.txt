@@ -1,0 +1,266 @@
+#!/bin/bash
+#
+# QUICK DEPLOYMENT GUIDE
+# ArgoCD + Image Updater Fully Integrated
+#
+# This shows the exact commands to deploy your entire stack
+#
+
+cat << 'EOF'
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                     GAMEMETRICS PRO - QUICK DEPLOYMENT GUIDE                   ║
+║                   ArgoCD + Image Updater Fully Integrated                       ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🎯 DEPLOYMENT OPTIONS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTION 1: Deploy to Existing Kubernetes Cluster (Quick)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Command:
+    kubectl apply -k k8s/
+
+  What Gets Deployed:
+    ✓ ArgoCD (GitOps)
+    ✓ ArgoCD Image Updater (automatic image updates)
+    ✓ Namespaces & RBAC
+    ✓ Kafka Cluster
+    ✓ Microservices (Event Ingestion, Notification Service)
+    ✓ Observability (Prometheus, Grafana, Loki, Tempo)
+    ✓ Secrets & ConfigMaps
+
+  Duration: ~3-5 minutes
+
+  Access ArgoCD:
+    kubectl port-forward svc/argocd-server -n argocd 8080:443
+    Open: https://localhost:8080
+    Username: admin
+    Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTION 2: Production Deployment with AWS Infrastructure (Complete)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Command:
+    ./scripts/production-deploy.sh us-east-1 prod
+
+  What Gets Deployed:
+    ✓ AWS Infrastructure (EKS, RDS, ElastiCache, ECR, VPC)
+    ✓ EKS Cluster with Node Groups
+    ✓ ALL from Option 1 (K8s Stack + ArgoCD + Image Updater)
+
+  Prerequisites:
+    - AWS CLI configured with credentials
+    - Terraform installed
+    - Docker installed (for building images)
+
+  Duration: ~20-30 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTION 3: Deploy Only ArgoCD + Image Updater (Minimal)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Command:
+    kubectl apply -k k8s/argocd/overlays
+    kubectl apply -k k8s/argocd-image-updater/overlays/dev
+
+  What Gets Deployed:
+    ✓ ArgoCD (without applications)
+    ✓ ArgoCD Image Updater
+
+  Duration: ~1-2 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 STEP-BY-STEP GUIDE (Option 1: Most Common)
+
+  Step 1: Deploy
+  ───────────────────────────────────────────────────────────────────────────
+    kubectl apply -k k8s/
+
+    ⏳ Wait 30 seconds for resources to initialize...
+
+  Step 2: Verify Installation
+  ───────────────────────────────────────────────────────────────────────────
+    ./scripts/validate-argocd-setup.sh
+
+  Step 3: Access ArgoCD UI
+  ───────────────────────────────────────────────────────────────────────────
+    # In one terminal, start port-forward:
+    kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+    # In another terminal, get the password:
+    kubectl -n argocd get secret argocd-initial-admin-secret \
+      -o jsonpath="{.data.password}" | base64 -d
+
+    # Open browser: https://localhost:8080
+    # Login: admin / <password from above>
+
+  Step 4: Build and Deploy a Service
+  ───────────────────────────────────────────────────────────────────────────
+    ./scripts/build-push-ecr.sh notification-service
+
+    ⏳ Wait ~2 minutes for Image Updater to detect and update...
+
+    You'll see:
+      • New image pushed to ECR
+      • Image Updater updates ArgoCD Application
+      • ArgoCD syncs the change
+      • Kubernetes rolls new pods with new image
+
+  Step 5: Monitor Auto-Updates
+  ───────────────────────────────────────────────────────────────────────────
+    # Watch Image Updater logs:
+    kubectl logs -n argocd-image-updater-system \
+      -l app.kubernetes.io/name=argocd-image-updater -f
+
+    # Watch ArgoCD syncing:
+    kubectl logs -n argocd deployment/argocd-application-controller -f
+
+    # Or use ArgoCD UI to watch in real-time
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 WHAT'S DEPLOYED BY `kubectl apply -k k8s/`
+
+  Namespaces:
+    ✓ argocd                          (ArgoCD components)
+    ✓ argocd-image-updater-system    (Image Updater)
+    ✓ gamemetrics                     (Your applications)
+    ✓ kafka                           (Message broker)
+    ✓ monitoring                      (Observability)
+    ✓ databases                       (Data storage)
+
+  ArgoCD Components:
+    ✓ argocd-server                   (Web UI + API)
+    ✓ argocd-application-controller   (Syncs apps)
+    ✓ argocd-repo-server              (Git integration)
+    ✓ argocd-dex-server               (OAuth)
+    ✓ argocd-redis                    (Cache)
+
+  Image Updater Components:
+    ✓ argocd-image-updater-controller (ECR monitoring)
+    ✓ ImageUpdater CRD                (Configuration)
+    ✓ RBAC Resources                  (ServiceAccount, Roles)
+
+  Kafka:
+    ✓ Strimzi Operator
+    ✓ Kafka Broker StatefulSet
+    ✓ Kafka Controller
+    ✓ Kafka Topics
+
+  Applications:
+    ✓ event-ingestion-service
+    ✓ notification-service
+    ✓ (other configured services)
+
+  Observability:
+    ✓ Prometheus                      (Metrics)
+    ✓ Grafana                         (Dashboards)
+    ✓ Loki                            (Logs)
+    ✓ Promtail                        (Log forwarder)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 VERIFICATION COMMANDS
+
+  Check all pods:
+    kubectl get pods -A
+
+  Check ArgoCD pods:
+    kubectl get pods -n argocd
+
+  Check Image Updater pod:
+    kubectl get pods -n argocd-image-updater-system
+
+  Check services running:
+    kubectl get svc -n gamemetrics
+
+  Check Image Updater status:
+    kubectl get deployment argocd-image-updater-controller \
+      -n argocd-image-updater-system
+
+  Check Image Updater logs:
+    kubectl logs -n argocd-image-updater-system \
+      -l app.kubernetes.io/name=argocd-image-updater
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION
+
+  Main Integration Guide:
+    docs/ARGOCD_INTEGRATION.md
+
+  Quick Reference (Commands):
+    docs/ARGOCD_QUICK_REFERENCE.md
+
+  Detailed Setup:
+    docs/ARGOCD_SETUP.md
+
+  Image Updater Details:
+    k8s/argocd-image-updater/README.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ FREQUENTLY ASKED QUESTIONS
+
+  Q: How do I deploy?
+  A: kubectl apply -k k8s/
+
+  Q: Do I still need bootstrap-argocd.sh?
+  A: No, it's integrated. But you can still use it manually if preferred.
+
+  Q: How long does deployment take?
+  A: 3-5 minutes for Kubernetes stack. 20-30 minutes for production (with AWS).
+
+  Q: Can I deploy to different environments?
+  A: Yes, create overlays in k8s/argocd-image-updater/overlays/prod/
+
+  Q: How do automatic image updates work?
+  A: Build image → Push to ECR → Image Updater detects (2min) → Updates App → Pod restarts
+
+  Q: What if Image Updater doesn't work?
+  A: Check logs: kubectl logs -n argocd-image-updater-system -l app.kubernetes.io/name=argocd-image-updater
+
+  Q: Can I customize the update interval?
+  A: Yes, edit k8s/argocd-image-updater/overlays/<env>/kustomization.yaml
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ SUCCESS CHECKLIST
+
+After running deployment:
+
+  [ ] ArgoCD pods running (kubectl get pods -n argocd)
+  [ ] Image Updater pod running (kubectl get pods -n argocd-image-updater-system)
+  [ ] ArgoCD UI accessible (https://localhost:8080 after port-forward)
+  [ ] Services deployed (kubectl get svc -n gamemetrics)
+  [ ] Kafka running (kubectl get pods -n kafka)
+  [ ] Can build and push image: ./scripts/build-push-ecr.sh notification-service
+  [ ] Image updates detected within 2 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 QUICK START (TL;DR)
+
+  # Deploy everything
+  kubectl apply -k k8s/
+
+  # Get ArgoCD password
+  kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+
+  # Port forward to UI
+  kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+  # Open browser
+  open https://localhost:8080
+
+  # Login and explore!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+That's it! Your GitOps platform with automatic image updates is ready! 🎉
+
+EOF

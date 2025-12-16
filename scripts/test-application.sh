@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+#
+# GameMetrics Pro - Application Test Suite Script
+# 
+# This script runs basic health checks and functional tests:
+# 1. Liveness probe test
+# 2. Readiness probe test
+# 3. Event ingestion test
+# 4. Pod logs inspection
+#
+# Usage:
+#   ./scripts/test-application.sh
+#
+# Prerequisites:
+#   - kubectl configured and connected
+#   - event-ingestion service deployed and running
+#   - Port 8081 available (for port-forwarding)
+#
+# Note: This is a basic test script. For comprehensive testing, use
+# the integration test suite in tests/integration/.
+#
+
 set -euo pipefail
 
 echo "==================================================================="

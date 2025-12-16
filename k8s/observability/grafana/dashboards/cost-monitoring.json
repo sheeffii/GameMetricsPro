@@ -1,0 +1,51 @@
+{
+  "dashboard": {
+    "title": "Cost Monitoring",
+    "tags": ["cost", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "1h",
+    "panels": [
+      {
+        "id": 1,
+        "title": "CPU Cost by Namespace",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\"}) by (namespace) * 0.024",
+            "legendFormat": "{{namespace}} ($/hour)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Memory Cost by Namespace",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\"}) by (namespace) / 1024 / 1024 / 1024 * 0.005",
+            "legendFormat": "{{namespace}} ($/hour)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Estimated Monthly Cost",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\"}) * 0.024 * 730 + sum(kube_pod_container_resource_requests{resource=\"memory\"}) / 1024 / 1024 / 1024 * 0.005 * 730",
+            "legendFormat": "Monthly Cost ($)"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 12, "x": 0, "y": 8}
+      }
+    ]
+  }
+}
+
+
+

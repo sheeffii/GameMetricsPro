@@ -1,0 +1,69 @@
+# ============================================================================
+# Thanos Sidecar for Prometheus
+# Enables long-term metrics storage
+# ============================================================================
+
+# This is added to Prometheus StatefulSet as a sidecar container
+# Full Thanos deployment includes:
+# - Sidecar (with Prometheus)
+# - Query (Thanos Query)
+# - Store (Thanos Store Gateway)
+# - Compactor (Thanos Compactor)
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+      # Prometheus container (existing)
+      - name: prometheus
+        # ... existing config ...
+      
+      # Thanos Sidecar container
+      - name: thanos-sidecar
+        image: quay.io/thanos/thanos:v0.32.5
+        args:
+        - sidecar
+        - --prometheus.url=http://localhost:9090
+        - --tsdb.path=/var/prometheus
+        - --objstore.config-file=/etc/thanos/storage.yaml
+        volumeMounts:
+        - name: prometheus-data
+          mountPath: /var/prometheus
+        - name: thanos-storage-config
+          mountPath: /etc/thanos
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: thanos-storage-config
+        secret:
+          secretName: thanos-storage-config
+---
+# S3 Storage Configuration for Thanos
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-storage-config
+  namespace: monitoring
+type: Opaque
+stringData:
+  storage.yaml: |
+    type: S3
+    config:
+      bucket: gamemetrics-thanos-metrics
+      endpoint: s3.amazonaws.com
+      region: us-east-1
+      access_key: ${AWS_ACCESS_KEY_ID}
+      secret_key: ${AWS_SECRET_ACCESS_KEY}
+
+
+

@@ -1,0 +1,76 @@
+# ============================================================================
+# ArgoCD Notifications Configuration
+# Free Tier Optimized - Slack/Email notifications
+# ============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  # Slack service configuration
+  service.slack: |
+    token: $slack-token
+    username: ArgoCD
+    icon: ":rocket:"
+  
+  # Email service configuration (SMTP)
+  service.email: |
+    username: $email-username
+    password: $email-password
+    host: smtp.gmail.com
+    port: 587
+    from: argocd@gamemetrics.com
+  
+  # Notification templates
+  template.app-deployed: |
+    email:
+      subject: Application {{.app.metadata.name}} deployed
+    slack:
+      title: Application {{.app.metadata.name}} deployed
+      text: |
+        Application {{.app.metadata.name}} is now running new version {{.app.status.sync.revision}}.
+        Sync status: {{.app.status.sync.status}}
+        Health status: {{.app.status.health.status}}
+  
+  template.app-sync-failed: |
+    email:
+      subject: Application {{.app.metadata.name}} sync failed
+    slack:
+      title: Application {{.app.metadata.name}} sync failed
+      text: |
+        Application {{.app.metadata.name}} sync failed.
+        Error: {{.app.status.operationState.message}}
+  
+  template.app-health-degraded: |
+    email:
+      subject: Application {{.app.metadata.name}} health degraded
+    slack:
+      title: Application {{.app.metadata.name}} health degraded
+      text: |
+        Application {{.app.metadata.name}} health is {{.app.status.health.status}}.
+        Please check the application status.
+  
+  # Default triggers
+  defaultTriggers: |
+    - on-deployed
+    - on-sync-failed
+    - on-health-degraded
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd
+type: Opaque
+stringData:
+  # Slack webhook URL (set via External Secrets or manually)
+  slack-token: <SLACK_WEBHOOK_URL>
+  # Email credentials (set via External Secrets or manually)
+  email-username: <EMAIL_USERNAME>
+  email-password: <EMAIL_PASSWORD>
+
+
+

@@ -1,7 +1,28 @@
 #!/bin/bash
-
-# GameMetrics Pro - Health Check Script
-# This script performs comprehensive health checks on all components
+#
+# GameMetrics Pro - Comprehensive Health Check Script
+# 
+# This script performs comprehensive health checks on all platform components:
+# - Kafka Cluster (brokers, ZooKeeper, topics)
+# - Databases (PostgreSQL, Redis, TimescaleDB, Qdrant)
+# - Application Services (all microservices)
+# - Monitoring Stack (Prometheus, Grafana, Loki, Tempo)
+# - ArgoCD (server, applications sync status)
+# - Istio Service Mesh (control plane, ingress gateway)
+# - Kubernetes Nodes (status, pressure)
+# - Persistent Volumes (PVC binding status)
+#
+# Usage:
+#   ./scripts/setup/health-check.sh
+#
+# Prerequisites:
+#   - kubectl configured and connected
+#   - All components deployed
+#
+# Exit Codes:
+#   0 - All health checks passed
+#   1 - One or more health checks failed
+#
 
 set -e
 

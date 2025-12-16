@@ -1,0 +1,80 @@
+# ============================================================================
+# ArgoCD Rollouts - Canary Deployment Example
+# For event-ingestion-service
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: event-ingestion-service
+  namespace: gamemetrics
+spec:
+  replicas: 2
+  strategy:
+    canary:
+      steps:
+      - setWeight: 10    # 10% traffic to new version
+      - pause: {duration: 5m}  # Wait 5 minutes
+      - setWeight: 50    # 50% traffic to new version
+      - pause: {duration: 5m}  # Wait 5 minutes
+      - setWeight: 100   # 100% traffic to new version
+      canaryService: event-ingestion-service-canary
+      stableService: event-ingestion-service-stable
+      trafficRouting:
+        istio:
+          virtualService:
+            name: event-ingestion-service-vs
+            routes:
+            - primary
+      analysis:
+        templates:
+        - templateName: error-rate
+        args:
+        - name: service-name
+          value: event-ingestion-service
+        startingStep: 2
+        interval: 30s
+        count: 5
+  selector:
+    matchLabels:
+      app: event-ingestion-service
+  template:
+    metadata:
+      labels:
+        app: event-ingestion-service
+    spec:
+      containers:
+      - name: event-ingestion
+        image: <ECR_REGISTRY>/event-ingestion-service:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+# Analysis Template for Error Rate
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate
+  namespace: gamemetrics
+spec:
+  metrics:
+  - name: error-rate
+    interval: 30s
+    successCondition: result[0] <= 0.05  # Error rate <= 5%
+    failureCondition: result[0] >= 0.10  # Error rate >= 10%
+    provider:
+      prometheus:
+        address: http://prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(http_requests_total{service="event-ingestion-service",status=~"5.."}[5m])) 
+          / 
+          sum(rate(http_requests_total{service="event-ingestion-service"}[5m]))
+
+
+

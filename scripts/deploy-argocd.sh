@@ -1,4 +1,24 @@
 #!/usr/bin/env bash
+#
+# GameMetrics Pro - ArgoCD Deployment Script
+# 
+# This script installs and configures ArgoCD for GitOps:
+# 1. Installs ArgoCD CRDs and controllers via Kustomize
+# 2. Waits for ArgoCD components to be ready
+# 3. Applies App-of-Apps pattern and application manifests
+#
+# ArgoCD will then manage all microservices via GitOps workflows.
+#
+# Usage:
+#   ./scripts/deploy-argocd.sh
+#
+# Prerequisites:
+#   - Kubernetes cluster must be running
+#   - kubectl configured and connected
+#   - k8s/argocd/base/ directory with ArgoCD manifests
+#   - argocd/app-of-apps.yml and argocd/apps/ directory
+#
+
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

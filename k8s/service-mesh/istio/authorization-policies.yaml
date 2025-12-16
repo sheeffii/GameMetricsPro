@@ -1,0 +1,52 @@
+# ============================================================================
+# Istio Authorization Policies
+# Enforces zero-trust networking
+# ============================================================================
+
+---
+# Default deny all in gamemetrics namespace
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: gamemetrics
+spec:
+  {}  # Empty spec = deny all
+---
+# Allow event-ingestion-service to receive traffic
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-event-ingestion
+  namespace: gamemetrics
+spec:
+  selector:
+    matchLabels:
+      app: event-ingestion-service
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+---
+# Allow event-processor-service to consume from Kafka
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-event-processor
+  namespace: gamemetrics
+spec:
+  selector:
+    matchLabels:
+      app: event-processor-service
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/gamemetrics/sa/event-processor-service"]
+    to:
+    - operation:
+        hosts: ["timescaledb.gamemetrics.svc.cluster.local"]
+
+
+

@@ -4,7 +4,6 @@ kind: Kustomization
 namespace: monitoring
 
 resources:
-  - namespace.yaml
   - prometheus-rbac.yaml
   - prometheus-config-updated.yaml
   - prometheus-deployment.yaml
@@ -17,3 +16,4 @@ resources:
   - promtail-daemonset.yaml
   - alertmanager-config.yaml
   - alertmanager-deployment.yaml
+  # Namespace is defined centrally in k8s/namespaces/namespaces.yml to avoid duplicates

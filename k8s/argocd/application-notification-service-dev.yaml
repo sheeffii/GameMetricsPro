@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: notification-service-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: notification-service=647523695124.dkr.ecr.us-east-1.amazonaws.com/notification-service
+    argocd-image-updater.argoproj.io/notification-service.update-strategy: latest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: gamemetrics
+  
+  # Source: Git repository
+  source:
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/services/notification-service
+    kustomize:
+      images:
+        - 647523695124.dkr.ecr.us-east-1.amazonaws.com/notification-service:latest
+  
+  # Destination: Target Kubernetes cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamemetrics
+  
+  # Sync policy: Automatic sync with self-healing
+  syncPolicy:
+    automated:
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Auto-sync when cluster state drifts from Git
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health check configuration
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore replica count differences (HPA controls this)
+  
+  # Notifications
+  revisionHistoryLimit: 10

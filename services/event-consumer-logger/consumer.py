@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -101,20 +102,31 @@ class RawEventLogger:
             conn = psycopg2.connect(**self.db_params)
             cur = conn.cursor()
             
+            # Handle multiple event formats:
+            # 1. event-ingestion format: event_id, event_type, player_id, game_id, timestamp, ingested_at, data
+            # 2. smoke test format (kcat): smokeTestId, event, ts
+            event_id = event.get('event_id') or event.get('smokeTestId') or str(uuid.uuid4())
+            event_type = event.get('event_type') or event.get('event') or 'unknown'
+            player_id = event.get('player_id') or 'smoke'
+            game_id = event.get('game_id') or 'smoke'
+            
             # Convert timestamp strings to datetime objects
             try:
                 event_ts = datetime.fromisoformat(
-                    event['timestamp'].replace('Z', '+00:00')
+                    event.get('timestamp', event.get('ts', '')).replace('Z', '+00:00')
                 )
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, AttributeError):
                 event_ts = datetime.utcnow()
             
             try:
                 ingested_ts = datetime.fromisoformat(
-                    event['ingested_at'].replace('Z', '+00:00')
+                    event.get('ingested_at', '').replace('Z', '+00:00')
                 )
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, AttributeError):
                 ingested_ts = datetime.utcnow()
+            
+            # Use event data or the whole event as fallback
+            data_obj = event.get('data', event)
             
             # Insert event into database
             cur.execute("""
@@ -124,13 +136,13 @@ class RawEventLogger:
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (event_id) DO NOTHING
             """, (
-                event.get('event_id'),
-                event.get('event_type'),
-                event.get('player_id'),
-                event.get('game_id'),
+                event_id,
+                event_type,
+                player_id,
+                game_id,
                 event_ts,
                 ingested_ts,
-                Json(event.get('data', {})),
+                Json(data_obj),
             ))
             
             affected_rows = cur.rowcount

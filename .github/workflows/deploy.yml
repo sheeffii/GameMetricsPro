@@ -1,0 +1,117 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  KUBECONFIG_PATH: ${{ secrets.KUBECONFIG_PATH }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.30.0'
+      
+      - name: Validate Kubernetes manifests
+        run: |
+          # Install kubeval
+          curl -L https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz | tar xz
+          
+          # Validate manifests
+          for f in k8s/**/*.yaml; do
+            echo "Validating $f..."
+            ./kubeval "$f" || exit 1
+          done
+  
+  deploy-dev:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_DEV }}" | base64 --decode > $HOME/.kube/config
+      
+      - name: Apply root kustomization
+        run: |
+          kubectl apply -k k8s/
+      
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/event-ingestion -n gamemetrics --timeout=5m || true
+          kubectl get pods -A
+      
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n gamemetrics
+          kubectl get svc -n gamemetrics
+          kubectl get pods -n kafka
+
+  deploy-staging:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 --decode > $HOME/.kube/config
+      
+      - name: Apply staging configuration
+        run: |
+          kubectl apply -k k8s/overlays/staging
+      
+      - name: Verify deployment
+        run: kubectl get pods -A
+
+  deploy-prod:
+    needs: [validate, deploy-staging]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_PROD }}" | base64 --decode > $HOME/.kube/config
+      
+      - name: Apply production configuration
+        run: |
+          kubectl apply -k k8s/overlays/prod
+      
+      - name: Verify deployment
+        run: kubectl get pods -A

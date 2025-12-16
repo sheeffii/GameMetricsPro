@@ -1,20 +1,19 @@
 name: CI - Build and Test Services
 
 on:
-  workflow_run:
-    workflows: ["Build and Deploy Event Ingestion Service"]
-    types:
-      - completed
-    branches: [ main, develop ]
   push:
     branches: [ main, develop ]
     paths:
-      - 'services/**'
+      - 'services/event-consumer-leaderboard/**'
+      - 'services/event-consumer-logger/**'
+      - 'services/event-consumer-stats/**'
       - '.github/workflows/ci-services.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
-      - 'services/**'
+      - 'services/event-consumer-leaderboard/**'
+      - 'services/event-consumer-logger/**'
+      - 'services/event-consumer-stats/**'
   workflow_dispatch:
 
 permissions:
@@ -41,22 +40,12 @@ jobs:
         id: filter
         with:
           filters: |
-            event-ingestion-service:
-              - 'services/event-ingestion-service/**'
-            event-processor-service:
-              - 'services/event-processor-service/**'
-            recommendation-engine:
-              - 'services/recommendation-engine/**'
-            analytics-api:
-              - 'services/analytics-api/**'
-            user-service:
-              - 'services/user-service/**'
-            notification-service:
-              - 'services/notification-service/**'
-            data-retention-service:
-              - 'services/data-retention-service/**'
-            admin-dashboard:
-              - 'services/admin-dashboard/**'
+            event-consumer-leaderboard:
+              - 'services/event-consumer-leaderboard/**'
+            event-consumer-logger:
+              - 'services/event-consumer-logger/**'
+            event-consumer-stats:
+              - 'services/event-consumer-stats/**'
 
   build-and-test:
     name: Build and Test
@@ -175,14 +164,24 @@ jobs:
             VCS_REF=${{ github.sha }}
             VERSION=${{ github.ref_name }}
 
-      - name: Scan Docker image with Trivy
+      - name: Scan Docker image with Trivy (local)
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
-          image-ref: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
-          format: 'table'
+          scan-type: 'fs'
+          scan-ref: 'services/${{ matrix.service }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: false
+
+      - name: Upload Trivy SARIF results
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
+        continue-on-error: true
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
@@ -208,16 +207,25 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
         run: |
           # Sign using keyless mode with GitHub OIDC
-          cosign sign --yes ${{ env.ECR_REGISTRY }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          cosign sign --yes ${{ steps.meta.outputs.tags | head -n1 }}
 
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+      - name: Generate SBOM (local)
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          # Install Syft
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Generate SBOM from local source
+          syft dir:services/${{ matrix.service }} -o spdx-json > sbom-${{ matrix.service }}.spdx.json || true
+
+      - name: Upload SBOM as artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v3
         with:
-          image: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
-          format: spdx-json
-          output-file: sbom-${{ matrix.service }}.spdx.json
-          upload-artifact: true
-          upload-release-assets: false
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+        continue-on-error: true
 
   integration-tests:
     name: Integration Tests

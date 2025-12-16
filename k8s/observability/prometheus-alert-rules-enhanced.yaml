@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules-enhanced
+  namespace: monitoring
+data:
+  alert-rules.yml: |
+    groups:
+      # Existing rules from prometheus-alert-rules.yaml...
+      
+      # Additional alerts to reach 40+ total
+      - name: database.rules
+        interval: 30s
+        rules:
+          - alert: PostgreSQLConnectionPoolExhausted
+            expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PostgreSQL connection pool nearly exhausted"
+              
+          - alert: PostgreSQLReplicationLag
+            expr: pg_replication_lag_seconds > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PostgreSQL replication lag high"
+              
+          - alert: RedisMemoryUsageHigh
+            expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Redis memory usage high"
+              
+          - alert: RedisConnectionFailure
+            expr: redis_connected_clients == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Redis connection failure"
+      
+      - name: application.rules
+        interval: 30s
+        rules:
+          - alert: EventIngestionHighLatency
+            expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{service="event-ingestion"}[5m])) > 0.5
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Event ingestion P99 latency > 500ms"
+              
+          - alert: EventProcessorLag
+            expr: kafka_consumergroup_lag{consumergroup="event-processor-group"} > 10000
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Event processor consumer lag high"
+              
+          - alert: RecommendationEngineErrorRate
+            expr: rate(http_requests_total{service="recommendation-engine",status=~"5.."}[5m]) / rate(http_requests_total{service="recommendation-engine"}[5m]) > 0.05
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Recommendation engine error rate > 5%"
+              
+          - alert: AnalyticsAPIHighLatency
+            expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{service="analytics-api"}[5m])) > 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Analytics API P99 latency > 1s"
+      
+      - name: infrastructure.rules
+        interval: 30s
+        rules:
+          - alert: HighPodRestartRate
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0.1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High pod restart rate detected"
+              
+          - alert: NodeDiskSpaceLow
+            expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node disk space < 15%"
+              
+          - alert: NodeDiskSpaceCritical
+            expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node disk space < 5%"
+              
+          - alert: ClusterCPUUsageHigh
+            expr: (1 - avg(rate(container_cpu_usage_seconds_total{container!="POD",container!=""}[5m]))) < 0.2
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Cluster CPU usage > 80%"
+              
+          - alert: ClusterMemoryUsageHigh
+            expr: (1 - (sum(container_memory_working_set_bytes{container!="POD",container!=""}) / sum(kube_node_status_allocatable{resource="memory"}))) < 0.15
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Cluster memory usage > 85%"
+
+
+

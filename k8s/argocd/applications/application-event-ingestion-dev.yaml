@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-ingestion-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: event-ingestion=647523695124.dkr.ecr.us-east-1.amazonaws.com/event-ingestion-service
+    argocd-image-updater.argoproj.io/event-ingestion.update-strategy: latest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: gamemetrics
+  source:
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/services/event-ingestion
+    kustomize:
+      images:
+        - 647523695124.dkr.ecr.us-east-1.amazonaws.com/event-ingestion-service:latest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamemetrics
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  revisionHistoryLimit: 10

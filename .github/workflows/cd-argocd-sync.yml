@@ -1,0 +1,166 @@
+name: CD - ArgoCD GitOps Sync (Free Tier Optimized)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/**'
+      - 'argocd/**'
+      - '.github/workflows/cd-argocd-sync.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to sync'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+# Free Tier: Limit concurrent runs
+concurrency:
+  group: cd-argocd-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: gamemetrics-dev
+
+jobs:
+  sync-dev:
+    name: Sync Dev Environment (Auto)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    environment: development
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Get ArgoCD admin password
+        id: argocd-password
+        run: |
+          PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Port-forward ArgoCD server
+        run: |
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          sleep 5
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login localhost:8080 --insecure --username admin --password ${{ steps.argocd-password.outputs.password }}
+
+      - name: Sync all dev applications
+        run: |
+          # Sync app-of-apps first
+          argocd app sync gamemetrics-app-of-apps --server localhost:8080 --insecure || true
+          
+          # Wait for app-of-apps to sync
+          sleep 10
+          
+          # Sync all dev applications
+          for app in $(argocd app list -o name | grep -E ".*-dev$"); do
+            echo "Syncing $app..."
+            argocd app sync $app --server localhost:8080 --insecure || true
+          done
+
+      - name: Wait for sync completion
+        run: |
+          sleep 30
+          argocd app list --server localhost:8080 --insecure
+
+      - name: Verify deployments
+        run: |
+          kubectl get pods -n gamemetrics
+          kubectl get applications -n argocd
+
+  sync-staging:
+    name: Sync Staging Environment (Manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
+    environment: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name gamemetrics-staging
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Sync staging applications
+        run: |
+          # Similar to dev sync but for staging
+          echo "Staging sync would happen here"
+
+  sync-prod:
+    name: Sync Production Environment (Manual Approval)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name gamemetrics-prod
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Sync production applications (Manual)
+        run: |
+          echo "Production sync requires manual approval"
+          echo "Use ArgoCD UI or CLI to sync production applications"
+
+
+

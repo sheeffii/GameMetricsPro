@@ -1,0 +1,63 @@
+{
+  "dashboard": {
+    "title": "Kafka Health",
+    "tags": ["kafka", "health"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Kafka Brokers Online",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(kafka_server_replicamanager_leadercount)",
+            "legendFormat": "Brokers"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Messages per Second",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(kafka_server_brokertopicmetrics_messagesinpersec_count[5m]))",
+            "legendFormat": "Messages/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Consumer Lag",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kafka_consumergroup_lag",
+            "legendFormat": "{{consumergroup}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 4,
+        "title": "Under-Replicated Partitions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "kafka_server_replicamanager_underreplicatedpartitions",
+            "legendFormat": "Under-Replicated"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 4}
+      }
+    ]
+  }
+}
+
+
+

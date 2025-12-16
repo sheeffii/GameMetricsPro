@@ -1,6 +1,23 @@
 #!/bin/bash
-# Load test script - Generate sample events to test the entire pipeline
-# Usage: ./load_test_events.sh <count> <rate_per_second>
+#
+# GameMetrics Pro - Load Testing Script
+# 
+# This script performs load testing by sending multiple events to the event-ingestion service.
+# It generates various event types and sends them at a specified rate.
+#
+# Usage:
+#   ./scripts/load_test_events.sh [count] [rate_per_second]
+#   Example: ./scripts/load_test_events.sh 1000 100
+#
+# Prerequisites:
+#   - event-ingestion service accessible (via INGESTION_SERVICE_URL or port-forward)
+#   - curl installed
+#
+# Environment Variables:
+#   INGESTION_SERVICE_URL - Event ingestion service URL (default: http://localhost:8080)
+#
+# Note: For more comprehensive load testing, use k6 scripts in tests/load/.
+#
 
 set -e
 

@@ -81,7 +81,7 @@ module "eks" {
     }
 
     application = {
-      desired_size = 2
+      desired_size = 3
       min_size     = 2
       max_size     = 4
 
@@ -121,16 +121,46 @@ module "eks" {
     vpc-cni = {
       most_recent = true
     }
-    # aws-ebs-csi-driver disabled for MVP testing - enable when persistent volumes needed
-    # aws-ebs-csi-driver = {
-    #   most_recent = true
-    # }
+    aws-ebs-csi-driver = {
+      most_recent              = true
+      service_account_role_arn = aws_iam_role.ebs_csi_irsa.arn
+    }
   }
 
   # Enable cluster logging
   cluster_enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   tags = var.tags
+}
+
+# IAM role for EBS CSI controller (IRSA)
+resource "aws_iam_role" "ebs_csi_irsa" {
+  name = "gamemetrics-${var.environment}-ebs-csi-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_irsa_policy" {
+  role       = aws_iam_role.ebs_csi_irsa.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
 # RDS PostgreSQL Module

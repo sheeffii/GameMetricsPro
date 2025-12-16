@@ -1,0 +1,519 @@
+# ArgoCD GitOps Setup Guide
+
+## Overview
+This guide explains how to configure ArgoCD for GitOps-based continuous deployment of your GameMetrics platform.
+
+---
+
+## Architecture
+
+### GitOps Workflow
+```
+Developer Push → GitHub → ArgoCD → Kubernetes Cluster
+     ↓              ↓          ↓           ↓
+  Git Commit    Webhook   Git Sync    Apply Changes
+```
+
+### CI/CD Pipeline Split
+
+**GitHub Actions (CI - Continuous Integration):**
+- Build Docker images
+- Run tests
+- Push images to ECR
+- Update image tags in Git (optional)
+
+**ArgoCD (CD - Continuous Deployment):**
+- Monitor Git repository
+- Detect changes in Kubernetes manifests
+- Apply changes to cluster
+- Health checks and rollback
+
+---
+
+## Prerequisites
+
+1. **ArgoCD Already Installed** (from previous setup)
+   - ArgoCD server running in `argocd` namespace
+   - ArgoCD CLI installed
+   - Admin credentials saved
+
+2. **Git Repository Setup**
+   - Push your code to GitHub: `https://github.com/YOUR-USERNAME/RealtimeGaming.git`
+   - Two branches:
+     - `develop` → Development environment
+     - `main` → Production environment
+
+3. **Update ArgoCD Application Files**
+   - Edit `k8s/argocd/*.yaml` files
+   - Replace `YOUR-USERNAME` with your GitHub username
+
+---
+
+## Step 1: Create ArgoCD Project
+
+A Project groups related applications and defines permissions.
+
+```powershell
+# Apply the GameMetrics project
+kubectl apply -f k8s/argocd/project-gamemetrics.yaml
+
+# Verify project created
+kubectl get appproject -n argocd gamemetrics
+```
+
+Expected output:
+```
+NAME          AGE
+gamemetrics   5s
+```
+
+---
+
+## Step 2: Deploy Applications via ArgoCD
+
+### Deploy Kafka Infrastructure (Development)
+
+```powershell
+# Apply Kafka application
+kubectl apply -f k8s/argocd/application-kafka-dev.yaml
+
+# Wait for sync to complete
+kubectl get application -n argocd kafka-dev -w
+```
+
+ArgoCD will:
+1. Clone the Git repository
+2. Read `k8s/kafka/overlays/dev/kustomization.yaml`
+3. Apply all Kafka resources (Kafka cluster, topics, UI)
+4. Monitor health status
+
+### Deploy Event Ingestion Service (Development)
+
+```powershell
+# Apply event ingestion application
+kubectl apply -f k8s/argocd/application-event-ingestion-dev.yaml
+
+# Check sync status
+kubectl get application -n argocd event-ingestion-dev
+```
+
+### Deploy Event Ingestion Service (Production)
+
+```powershell
+# Apply production application (manual sync required)
+kubectl apply -f k8s/argocd/application-event-ingestion-prod.yaml
+
+# Production requires manual sync (no auto-deploy)
+kubectl get application -n argocd event-ingestion-prod
+```
+
+---
+
+## Step 3: Access ArgoCD UI
+
+### Get ArgoCD Server URL
+
+```powershell
+# Port-forward to access ArgoCD UI locally
+kubectl port-forward svc/argocd-server -n argocd 8081:443
+```
+
+Open browser: **https://localhost:8081**
+
+### Login Credentials
+
+Username: `admin`
+
+Password: (retrieve from Kubernetes secret)
+```powershell
+kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
+```
+
+### ArgoCD Dashboard Features
+
+- **Applications**: View all deployed apps (Kafka, Event Ingestion Dev/Prod)
+- **Sync Status**: See if Git and cluster are in sync
+- **Health Status**: Check if resources are healthy
+- **Resource Tree**: Visualize Kubernetes resources (Deployments, Pods, Services)
+- **Events**: View recent sync events and errors
+
+---
+
+## Step 4: Test GitOps Workflow
+
+### Scenario 1: Update Application Configuration
+
+1. **Edit Kubernetes manifest in Git:**
+   ```powershell
+   # Example: Change replica count
+   # Edit k8s/apps/event-ingestion/overlays/dev/deployment.yaml
+   # Change replicas from 2 to 3
+   ```
+
+2. **Commit and push to GitHub:**
+   ```powershell
+   git add k8s/apps/event-ingestion/overlays/dev/deployment.yaml
+   git commit -m "Scale event-ingestion to 3 replicas"
+   git push origin develop
+   ```
+
+3. **ArgoCD automatically syncs (within 3 minutes):**
+   - Detects Git change
+   - Applies new replica count
+   - Waits for rollout to complete
+   - Reports health status
+
+4. **Verify in cluster:**
+   ```powershell
+   kubectl get deployment event-ingestion-service -n gamemetrics
+   # Should show 3/3 replicas
+   ```
+
+### Scenario 2: Deploy New Docker Image
+
+**Option A: Manual Image Tag Update (Simple)**
+
+1. **GitHub Actions builds and pushes new image** (already configured)
+2. **Manually update image tag in Git:**
+   ```powershell
+   # Edit k8s/apps/event-ingestion/overlays/dev/kustomization.yaml
+   # Update image tag to new SHA
+   ```
+3. **Commit and push:**
+   ```powershell
+   git add k8s/apps/event-ingestion/overlays/dev/kustomization.yaml
+   git commit -m "Update event-ingestion to sha256:abc123..."
+   git push origin develop
+   ```
+4. **ArgoCD deploys new image automatically**
+
+**Option B: Automated Image Tag Update (Advanced)**
+
+Add to GitHub Actions workflow (`.github/workflows/build-event-ingestion.yml`):
+
+```yaml
+- name: Update Kustomization Image Tag
+  run: |
+    cd k8s/apps/event-ingestion/overlays/dev
+    kustomize edit set image event-ingestion-service=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tags }}
+    
+- name: Commit and Push Image Tag
+  run: |
+    git config user.name "GitHub Actions"
+    git config user.email "actions@github.com"
+    git add k8s/apps/event-ingestion/overlays/dev/kustomization.yaml
+    git commit -m "Update image tag to ${{ steps.meta.outputs.tags }}"
+    git push
+```
+
+This creates a fully automated CI/CD pipeline:
+1. Developer pushes Go code
+2. GitHub Actions builds Docker image
+3. GitHub Actions updates image tag in Git
+4. ArgoCD detects Git change
+5. ArgoCD deploys new image
+
+### Scenario 3: Production Deployment (Manual Approval)
+
+Production uses **manual sync** for safety:
+
+1. **Merge develop to main:**
+   ```powershell
+   git checkout main
+   git merge develop
+   git push origin main
+   ```
+
+2. **ArgoCD detects change but DOES NOT auto-deploy**
+
+3. **Manually sync via ArgoCD UI:**
+   - Navigate to `event-ingestion-prod` application
+   - Click **SYNC** button
+   - Review changes in diff view
+   - Click **SYNCHRONIZE** to deploy
+
+4. **Or sync via CLI:**
+   ```powershell
+   argocd app sync event-ingestion-prod
+   ```
+
+---
+
+## Step 5: Configure Git Webhook (Optional but Recommended)
+
+By default, ArgoCD polls Git every 3 minutes. Webhooks enable instant sync.
+
+### GitHub Webhook Setup
+
+1. **Get ArgoCD Webhook URL:**
+   ```
+   https://argocd.yourdomain.com/api/webhook
+   ```
+
+2. **In GitHub repository settings:**
+   - Go to **Settings → Webhooks → Add webhook**
+   - Payload URL: `https://argocd.yourdomain.com/api/webhook`
+   - Content type: `application/json`
+   - Secret: (optional, for security)
+   - Events: **Just the push event**
+   - Active: ✅
+
+3. **Now Git pushes trigger immediate ArgoCD sync** (no 3-minute delay)
+
+---
+
+## Step 6: Monitoring and Troubleshooting
+
+### Check Application Sync Status
+
+```powershell
+# List all applications
+kubectl get applications -n argocd
+
+# Describe specific application
+kubectl describe application event-ingestion-dev -n argocd
+
+# View sync history
+argocd app history event-ingestion-dev
+```
+
+### View Application Logs
+
+```powershell
+# ArgoCD application controller logs
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-application-controller
+
+# ArgoCD server logs (API and UI)
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server
+
+# ArgoCD repo server logs (Git operations)
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-repo-server
+```
+
+### Force Manual Sync
+
+```powershell
+# Sync application immediately (don't wait for automatic sync)
+argocd app sync event-ingestion-dev
+
+# Sync with prune (delete resources not in Git)
+argocd app sync event-ingestion-dev --prune
+
+# Hard refresh (ignore cache)
+argocd app sync event-ingestion-dev --force
+```
+
+### Rollback to Previous Version
+
+```powershell
+# View history
+argocd app history event-ingestion-dev
+
+# Rollback to revision 5
+argocd app rollback event-ingestion-dev 5
+```
+
+### Troubleshooting Out-of-Sync Status
+
+**Problem:** Application shows "OutOfSync" status
+
+**Solution 1: Check Git repository access**
+```powershell
+argocd repo list
+# Ensure repository connection status is "Successful"
+```
+
+**Solution 2: Check resource differences**
+```powershell
+argocd app diff event-ingestion-dev
+# Shows what's different between Git and cluster
+```
+
+**Solution 3: Sync with replace**
+```powershell
+argocd app sync event-ingestion-dev --replace
+# Forces replacement of resources
+```
+
+---
+
+## Complete CI/CD Flow Example
+
+### Development Environment (Automatic)
+
+```
+1. Developer changes Go code in services/event-ingestion-service/
+2. Developer commits and pushes to `develop` branch
+3. GitHub Actions workflow triggers:
+   - Builds Docker image
+   - Pushes to ECR
+   - (Optional) Updates image tag in Git
+4. ArgoCD detects Git change (via webhook or polling)
+5. ArgoCD syncs application:
+   - Applies new Deployment
+   - Waits for rollout
+   - Checks health
+6. New pods running with latest code
+```
+
+**Rollback:** Automatic if health check fails (configured in Application spec)
+
+### Production Environment (Manual Approval)
+
+```
+1. Developer merges `develop` → `main` branch
+2. GitHub Actions workflow triggers:
+   - Builds Docker image
+   - Pushes to ECR with `prod` tag
+   - Updates image tag in Git
+3. ArgoCD detects Git change but DOES NOT auto-deploy
+4. DevOps engineer reviews change in ArgoCD UI
+5. DevOps engineer clicks "SYNC" to deploy
+6. ArgoCD applies changes
+7. Smoke tests run (configured in GitHub Actions)
+8. If tests fail, manual rollback required
+```
+
+**Approval Required:** Yes, via ArgoCD UI or CLI
+
+---
+
+## Security Best Practices
+
+### 1. Use Deploy Keys (Not Personal Access Tokens)
+
+```powershell
+# Generate SSH key for ArgoCD
+ssh-keygen -t ed25519 -C "argocd@gamemetrics" -f argocd-deploy-key
+
+# Add public key to GitHub repository (Settings → Deploy keys)
+# Add private key to ArgoCD:
+argocd repo add git@github.com:YOUR-USERNAME/RealtimeGaming.git --ssh-private-key-path argocd-deploy-key
+```
+
+### 2. Enable RBAC for ArgoCD Users
+
+Edit `k8s/argocd/project-gamemetrics.yaml`:
+- `developer` role: Can view and sync dev applications only
+- `admin` role: Full control over all applications
+
+### 3. Use Sealed Secrets or External Secrets
+
+Never commit secrets to Git:
+- Use External Secrets Operator (already configured in `k8s/external-secrets/`)
+- Or use Bitnami Sealed Secrets
+- Or use HashiCorp Vault
+
+### 4. Enable Image Signature Verification
+
+Add to Application spec:
+```yaml
+spec:
+  source:
+    helm:
+      valuesObject:
+        image:
+          pullPolicy: Always
+          verifySignature: true
+```
+
+---
+
+## Comparison: Scripts vs GitOps
+
+### Before (Manual Scripts)
+
+❌ `deploy-infrastructure.sh` - Manual execution
+❌ `update-secrets-from-aws.sh` - Manual secret sync
+❌ `docker build && docker push` - Manual image builds
+❌ `kubectl apply -k` - Manual deployments
+❌ No audit trail
+❌ No automatic rollback
+❌ Configuration drift between environments
+
+### After (GitOps with ArgoCD)
+
+✅ Git push triggers automatic deployment
+✅ Secrets auto-sync from AWS Secrets Manager
+✅ GitHub Actions builds images automatically
+✅ ArgoCD deploys from Git automatically
+✅ Full audit trail (Git history)
+✅ Automatic rollback on failure
+✅ Git is single source of truth
+
+---
+
+## Next Steps
+
+1. **Apply ArgoCD Configurations:**
+   ```powershell
+   kubectl apply -f k8s/argocd/project-gamemetrics.yaml
+   kubectl apply -f k8s/argocd/application-kafka-dev.yaml
+   kubectl apply -f k8s/argocd/application-event-ingestion-dev.yaml
+   kubectl apply -f k8s/argocd/application-event-ingestion-prod.yaml
+   ```
+
+2. **Access ArgoCD UI:**
+   ```powershell
+   kubectl port-forward svc/argocd-server -n argocd 8081:443
+   ```
+   Open: https://localhost:8081
+
+3. **Test GitOps Workflow:**
+   - Make a change to Kubernetes manifest
+   - Commit and push to Git
+   - Watch ArgoCD sync automatically
+
+4. **Configure GitHub Webhook** (for instant sync)
+
+5. **Test Production Deployment** (manual approval)
+
+6. **Monitor Applications** via ArgoCD dashboard
+
+---
+
+## Useful Commands Cheatsheet
+
+```powershell
+# List all ArgoCD applications
+kubectl get applications -n argocd
+
+# Watch application sync status
+kubectl get application event-ingestion-dev -n argocd -w
+
+# Force sync application
+argocd app sync event-ingestion-dev
+
+# View sync history
+argocd app history event-ingestion-dev
+
+# Rollback to previous version
+argocd app rollback event-ingestion-dev
+
+# View application logs
+argocd app logs event-ingestion-dev
+
+# Refresh application (check Git for changes)
+argocd app get event-ingestion-dev --refresh
+
+# Delete application (removes from ArgoCD, not from cluster)
+argocd app delete event-ingestion-dev
+
+# Delete application and all resources
+argocd app delete event-ingestion-dev --cascade
+```
+
+---
+
+## Conclusion
+
+**You now have a production-ready GitOps pipeline:**
+
+1. ✅ **Swagger UI** - Interactive API testing (http://localhost:8080/swagger)
+2. ✅ **GitHub Actions CI** - Automatic Docker builds on code changes
+3. ✅ **ArgoCD CD** - Automatic deployments from Git
+4. ✅ **External Secrets** - Automatic secret sync from AWS
+5. ✅ **Kafka Entity Operator** - Automatic topic creation
+6. ✅ **Full Audit Trail** - All changes tracked in Git
+
+**No more manual scripts!** Everything is automated via Git.

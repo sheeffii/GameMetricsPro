@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd-image-updater-system
+
+resources:
+  # Official ArgoCD Image Updater v1.0.1 manifest
+  - https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/config/install.yaml
+
+# Patch ConfigMap to configure ArgoCD server address and ECR registry
+patchesStrategicMerge:
+  - configmap-patch.yaml

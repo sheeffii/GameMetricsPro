@@ -1,4 +1,25 @@
 #!/bin/bash
+#
+# GameMetrics Pro - Infrastructure Deployment Script
+# 
+# This script deploys AWS infrastructure and Kubernetes base components:
+# 1. AWS Infrastructure via Terraform (EKS, RDS, ElastiCache, S3, ECR)
+# 2. Kubernetes Infrastructure (namespaces, RBAC, operators)
+# 3. Kafka Cluster and Topics (via Strimzi)
+# 4. Kubernetes Secrets from AWS Secrets Manager
+# 5. Deployment image updates with ECR URLs
+#
+# ⚠️  NOTE: For complete production deployment, use scripts/production-deploy.sh
+# This script focuses on infrastructure only (no application deployments).
+#
+# Usage:
+#   ./scripts/deploy-infrastructure.sh
+#
+# Environment Variables:
+#   AWS_REGION - AWS region (default: us-east-1)
+#   APPLY_KAFKA - Deploy Kafka cluster (default: true)
+#
+
 set -e
 
 # Colors for output

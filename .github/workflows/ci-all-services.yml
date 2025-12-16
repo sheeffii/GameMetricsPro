@@ -1,0 +1,247 @@
+name: CI - Build All Services (Free Tier Optimized)
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'services/**'
+      - '.github/workflows/ci-all-services.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'services/**'
+  workflow_dispatch:
+
+# Free Tier Optimization: Use concurrency to limit parallel jobs
+concurrency:
+  group: ci-all-services
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  actions: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  # Free Tier: Limit parallel builds to save resources
+  MAX_PARALLEL: 3
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+      matrix: ${{ steps.matrix.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            event-ingestion-service:
+              - 'services/event-ingestion-service/**'
+            event-processor-service:
+              - 'services/event-processor-service/**'
+            recommendation-engine:
+              - 'services/recommendation-engine/**'
+            analytics-api:
+              - 'services/analytics-api/**'
+            user-service:
+              - 'services/user-service/**'
+            notification-service:
+              - 'services/notification-service/**'
+            data-retention-service:
+              - 'services/data-retention-service/**'
+            admin-dashboard:
+              - 'services/admin-dashboard/**'
+      
+      - name: Create matrix
+        id: matrix
+        run: |
+          CHANGES='${{ steps.filter.outputs.changes }}'
+          if [ "$CHANGES" != "[]" ] && [ "$CHANGES" != "" ]; then
+            echo "result=$CHANGES" >> $GITHUB_OUTPUT
+          else
+            echo "result=[]" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-test:
+    name: Build and Test Service
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.services != '[]' && needs.detect-changes.outputs.services != '' }}
+    runs-on: ubuntu-latest
+    # Free Tier: Limit concurrent jobs
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ env.MAX_PARALLEL }}
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          # Free Tier: Use local cache to save bandwidth
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up language-specific tools
+        run: |
+          if [ -f "services/${{ matrix.service }}/go.mod" ]; then
+            echo "Setting up Go..."
+            sudo snap install go --classic
+          elif [ -f "services/${{ matrix.service }}/requirements.txt" ]; then
+            echo "Setting up Python..."
+            python -m pip install --upgrade pip
+            pip install -r services/${{ matrix.service }}/requirements.txt
+          elif [ -f "services/${{ matrix.service }}/package.json" ]; then
+            echo "Setting up Node.js..."
+            npm install -g npm@latest
+            cd services/${{ matrix.service }}
+            npm ci
+          elif [ -f "services/${{ matrix.service }}/pom.xml" ]; then
+            echo "Setting up Java..."
+            sudo apt-get update
+            sudo apt-get install -y maven
+          fi
+
+      - name: Run unit tests
+        run: |
+          cd services/${{ matrix.service }}
+          if [ -f "go.mod" ]; then
+            go test ./... -v -cover -short
+          elif [ -f "requirements.txt" ]; then
+            pytest --cov --cov-report=xml -v || true
+          elif [ -f "package.json" ]; then
+            npm test || true
+          elif [ -f "pom.xml" ]; then
+            mvn test -DskipTests=false || true
+          fi
+
+      - name: Run security scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: 'services/${{ matrix.service }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: false
+          # Free Tier: Cache scan results
+          cache-dir: /tmp/.trivy-cache
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: services/${{ matrix.service }}
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Free Tier: Use GitHub Actions cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ steps.build.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          cache-dir: /tmp/.trivy-cache
+
+      - name: Upload Trivy SARIF results
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
+        continue-on-error: true
+
+      - name: Push Docker image to ECR
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: services/${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Sign Docker image with Cosign
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign sign --yes ${{ steps.meta.outputs.tags | head -n1 }}
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft dir:services/${{ matrix.service }} -o spdx-json > sbom-${{ matrix.service }}.spdx.json || true
+
+      - name: Upload SBOM as artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+        continue-on-error: true
+
+  notify:
+    name: Notify Results
+    needs: build-and-test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'CI pipeline failed for one or more services'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+
+

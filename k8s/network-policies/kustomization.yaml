@@ -1,0 +1,7 @@
+resources:
+  - default-deny-all.yaml
+  - gamemetrics-allow.yaml
+
+commonLabels:
+  app: network-policies
+  environment: dev

@@ -1,0 +1,84 @@
+# ============================================================================
+# Kafka Schema Registry (Apicurio)
+# Free Tier Optimized
+# ============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: schema-registry-config
+  namespace: kafka
+data:
+  application.properties: |
+    apicurio.registry.storage.kind=sql
+    apicurio.registry.storage.sql.jdbc.url=jdbc:postgresql://postgresql.gamemetrics.svc.cluster.local:5432/schema_registry
+    apicurio.registry.storage.sql.jdbc.username=postgres
+    apicurio.registry.storage.sql.jdbc.password=postgres
+    apicurio.registry.ui.features.readOnly=false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apicurio-registry
+  namespace: kafka
+spec:
+  replicas: 1  # Free tier: Single replica
+  selector:
+    matchLabels:
+      app: apicurio-registry
+  template:
+    metadata:
+      labels:
+        app: apicurio-registry
+    spec:
+      containers:
+      - name: registry
+        image: apicurio/apicurio-registry-mem:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: JAVA_OPTIONS
+          value: "-Xms256m -Xmx512m"  # Free tier: Reduced memory
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: schema-registry-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: schema-registry
+  namespace: kafka
+spec:
+  selector:
+    app: apicurio-registry
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+
+
+

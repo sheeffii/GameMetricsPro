@@ -1,4 +1,21 @@
 #!/bin/bash
+#
+# GameMetrics Pro - System Status Check Script
+# 
+# This script displays the current status of the GameMetrics Pro platform:
+# - AWS Infrastructure (EKS, RDS, Redis endpoints from Terraform)
+# - Kubernetes Cluster (nodes, namespaces, pods)
+# - Kafka Status (pods, topics, services)
+# - Local Tools (AWS CLI, Terraform, kubectl versions)
+#
+# Usage:
+#   ./scripts/check-status.sh
+#
+# Prerequisites:
+#   - kubectl configured (optional, for K8s status)
+#   - terraform installed (optional, for infrastructure status)
+#   - aws CLI installed (optional, for AWS status)
+#
 
 # Colors for output
 GREEN='\033[0;32m'

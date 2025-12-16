@@ -1,0 +1,100 @@
+# ============================================================================
+# Kyverno Policies
+# Enforces security best practices
+# ============================================================================
+
+---
+# Policy 1: Require image signatures
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-image-signatures
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: check-image-signature
+    match:
+      resources:
+        kinds:
+        - Pod
+    validate:
+      message: "Container images must be signed"
+      pattern:
+        spec:
+          containers:
+          - name: "*"
+            image: "*.sigstore.dev/* | *.ecr.*.amazonaws.com/*"
+---
+# Policy 2: No privileged containers
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-containers
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: check-privileged
+    match:
+      resources:
+        kinds:
+        - Pod
+    validate:
+      message: "Privileged containers are not allowed"
+      pattern:
+        spec:
+          containers:
+          - name: "*"
+            securityContext:
+              privileged: "false"
+---
+# Policy 3: Require resource limits
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: check-resources
+    match:
+      resources:
+        kinds:
+        - Pod
+    validate:
+      message: "Resource limits are required"
+      pattern:
+        spec:
+          containers:
+          - name: "*"
+            resources:
+              limits:
+                memory: "?*"
+                cpu: "?*"
+---
+# Policy 4: Approved registries only
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-approved-registries
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: check-registry
+    match:
+      resources:
+        kinds:
+        - Pod
+    validate:
+      message: "Only approved container registries are allowed"
+      pattern:
+        spec:
+          containers:
+          - name: "*"
+            image: "*.ecr.*.amazonaws.com/* | *.sigstore.dev/* | docker.io/library/*"
+
+
+

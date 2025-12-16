@@ -1,0 +1,204 @@
+name: ArgoCD Instant Sync via Webhook
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/**'
+      - 'argocd/**'
+      - '.github/workflows/argocd-sync-webhook.yml'
+  workflow_dispatch:
+    inputs:
+      application:
+        description: 'Application to sync (leave empty for all)'
+        required: false
+        type: string
+      environment:
+        description: 'Environment (dev/staging/prod)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+# Free Tier: Limit concurrent runs
+concurrency:
+  group: argocd-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: gamemetrics-dev
+
+jobs:
+  sync-argocd:
+    name: Sync ArgoCD Applications
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'development' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+          argocd version --client
+
+      - name: Port-forward ArgoCD server
+        run: |
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          sleep 5
+          echo "ArgoCD server port-forwarded to localhost:8080"
+        env:
+          ARGOCD_SERVER: localhost:8080
+
+      - name: Get ArgoCD admin password
+        id: argocd-password
+        run: |
+          PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login localhost:8080 \
+            --insecure \
+            --username admin \
+            --password ${{ steps.argocd-password.outputs.password }}
+
+      - name: Detect changed applications
+        id: detect-apps
+        run: |
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || echo "")
+          
+          # Map file paths to ArgoCD applications
+          APPS=""
+          
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/event-ingestion"; then
+            APPS="$APPS event-ingestion-service-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/event-processor"; then
+            APPS="$APPS event-processor-service-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/recommendation-engine"; then
+            APPS="$APPS recommendation-engine-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/analytics-api"; then
+            APPS="$APPS analytics-api-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/user-service"; then
+            APPS="$APPS user-service-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/notification-service"; then
+            APPS="$APPS notification-service-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/data-retention-service"; then
+            APPS="$APPS data-retention-service-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/services/admin-dashboard"; then
+            APPS="$APPS admin-dashboard-dev"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "k8s/kafka"; then
+            APPS="$APPS kafka-prod"
+          fi
+          if echo "$CHANGED_FILES" | grep -q "argocd/"; then
+            APPS="$APPS gamemetrics-app-of-apps"
+          fi
+          
+          # If no specific apps detected or manual trigger, sync all
+          if [ -z "$APPS" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.application }}" ]; then
+              APPS="${{ github.event.inputs.application }}"
+            else
+              APPS="gamemetrics-app-of-apps"
+            fi
+          fi
+          
+          echo "apps=$APPS" >> $GITHUB_OUTPUT
+          echo "📋 Applications to sync: $APPS"
+
+      - name: Sync ArgoCD applications
+        run: |
+          APPS="${{ steps.detect-apps.outputs.apps }}"
+          
+          for APP in $APPS; do
+            echo "🔄 Syncing application: $APP"
+            
+            # Check if application exists
+            if argocd app get $APP --server localhost:8080 --insecure &>/dev/null; then
+              # Sync application
+              argocd app sync $APP \
+                --server localhost:8080 \
+                --insecure \
+                --prune \
+                --timeout 300 \
+                --retry-limit 3 || echo "⚠️ Sync failed for $APP"
+              
+              # Wait for sync to complete
+              argocd app wait $APP \
+                --server localhost:8080 \
+                --insecure \
+                --timeout 300 || echo "⚠️ Wait timeout for $APP"
+              
+              echo "✅ Synced: $APP"
+            else
+              echo "⚠️ Application $APP not found, skipping..."
+            fi
+          done
+
+      - name: Get sync status
+        run: |
+          echo "📊 ArgoCD Application Status:"
+          argocd app list --server localhost:8080 --insecure
+          
+          echo ""
+          echo "📈 Recent sync history:"
+          for APP in ${{ steps.detect-apps.outputs.apps }}; do
+            if argocd app get $APP --server localhost:8080 --insecure &>/dev/null; then
+              echo ""
+              echo "Application: $APP"
+              argocd app history $APP --server localhost:8080 --insecure | head -5
+            fi
+          done
+
+      - name: Notify on failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'ArgoCD sync failed for one or more applications'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+      - name: Notify on success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'ArgoCD sync completed successfully'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+
+

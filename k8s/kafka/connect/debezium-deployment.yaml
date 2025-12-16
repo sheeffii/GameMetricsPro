@@ -1,0 +1,122 @@
+# ============================================================================
+# Kafka Connect with Debezium for PostgreSQL CDC
+# Free Tier Optimized
+# ============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-connect-config
+  namespace: kafka
+data:
+  connect-distributed.properties: |
+    bootstrap.servers=gamemetrics-kafka-bootstrap.kafka.svc.cluster.local:9092
+    group.id=connect-cluster
+    config.storage.topic=connect-configs
+    offset.storage.topic=connect-offsets
+    status.storage.topic=connect-status
+    config.storage.replication.factor=1
+    offset.storage.replication.factor=1
+    status.storage.replication.factor=1
+    plugin.path=/kafka/connect
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-connect-debezium
+  namespace: kafka
+spec:
+  replicas: 1  # Free tier: Single replica
+  selector:
+    matchLabels:
+      app: kafka-connect-debezium
+  template:
+    metadata:
+      labels:
+        app: kafka-connect-debezium
+    spec:
+      containers:
+      - name: connect
+        image: debezium/connect:2.5
+        ports:
+        - containerPort: 8083
+          name: http
+        env:
+        - name: BOOTSTRAP_SERVERS
+          value: "gamemetrics-kafka-bootstrap.kafka.svc.cluster.local:9092"
+        - name: GROUP_ID
+          value: "connect-cluster"
+        - name: CONFIG_STORAGE_TOPIC
+          value: "connect-configs"
+        - name: OFFSET_STORAGE_TOPIC
+          value: "connect-offsets"
+        - name: STATUS_STORAGE_TOPIC
+          value: "connect-status"
+        volumeMounts:
+        - name: config
+          mountPath: /kafka/config
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /connectors
+            port: 8083
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /connectors
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: kafka-connect-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect
+  namespace: kafka
+spec:
+  selector:
+    app: kafka-connect-debezium
+  ports:
+  - port: 8083
+    targetPort: 8083
+    name: http
+---
+# Debezium PostgreSQL Connector Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-postgres-connector
+  namespace: kafka
+data:
+  connector-config.json: |
+    {
+      "name": "gamemetrics-postgres-connector",
+      "config": {
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.hostname": "postgresql.gamemetrics.svc.cluster.local",
+        "database.port": "5432",
+        "database.user": "postgres",
+        "database.password": "postgres",
+        "database.dbname": "gamemetrics",
+        "database.server.name": "gamemetrics-db",
+        "table.include.list": "public.player_events,public.player_statistics",
+        "plugin.name": "pgoutput",
+        "slot.name": "debezium_slot",
+        "publication.name": "debezium_pub",
+        "topic.prefix": "gamemetrics"
+      }
+    }
+
+
+

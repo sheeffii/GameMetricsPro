@@ -1,0 +1,47 @@
+# ============================================================================
+# Storage Classes for Different Performance Tiers
+# Free Tier Optimized
+# ============================================================================
+
+---
+# Fast SSD Storage Class (for databases, Kafka)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  fsType: ext4
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
+# Standard Storage Class (for general workloads)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  fsType: ext4
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
+# Archive Storage Class (for backups, logs)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: archive
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: sc1  # Cold HDD (cheapest)
+  fsType: ext4
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+
+
+

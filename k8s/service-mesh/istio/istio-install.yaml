@@ -1,0 +1,59 @@
+# ============================================================================
+# Istio Service Mesh Installation
+# Free Tier Optimized - Minimal resource usage
+# ============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+  labels:
+    istio-injection: disabled
+---
+# Istio Installation via IstioOperator
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: control-plane
+  namespace: istio-system
+spec:
+  profile: minimal  # Free Tier: Minimal profile
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 100m      # Free Tier: Reduced
+            memory: 128Mi  # Free Tier: Reduced
+          limits:
+            cpu: 500m
+            memory: 512Mi
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  values:
+    global:
+      # Free Tier: Reduce resource usage
+      proxy:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+    pilot:
+      # Enable mTLS by default
+      autoscaleEnabled: false  # Free Tier: Disable autoscaling
+      replicaCount: 1          # Free Tier: Single replica
+
+
+

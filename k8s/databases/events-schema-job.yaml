@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: events-schema-init
+  namespace: gamemetrics
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: psql
+        image: postgres:15
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: PGHOST
+          value: "timescaledb"
+        command:
+        - sh
+        - -lc
+        - |
+          echo "Initializing events schema (if missing)...";
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE IF NOT EXISTS public.events (
+            event_id text PRIMARY KEY,
+            event_type text,
+            player_id text,
+            game_id text,
+            event_timestamp timestamptz NOT NULL,
+            ingested_at timestamptz NOT NULL,
+            data jsonb NOT NULL DEFAULT '{}'::jsonb,
+            created_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE INDEX IF NOT EXISTS idx_events_player_id ON public.events(player_id);
+          CREATE INDEX IF NOT EXISTS idx_events_event_type ON public.events(event_type);
+          CREATE INDEX IF NOT EXISTS idx_events_event_ts ON public.events(event_timestamp);
+          SQL

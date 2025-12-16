@@ -1,0 +1,63 @@
+{
+  "dashboard": {
+    "title": "Business Metrics",
+    "tags": ["business", "metrics"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Events Received per Second",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(events_received_total[5m]))",
+            "legendFormat": "Events/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Events Processed",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(events_published_total)",
+            "legendFormat": "Total Events"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Recommendations Generated",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(recommendations_generated_total[5m]))",
+            "legendFormat": "Recommendations/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Notifications Sent",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(notifications_sent_total[5m]))",
+            "legendFormat": "Notifications/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      }
+    ]
+  }
+}
+
+
+

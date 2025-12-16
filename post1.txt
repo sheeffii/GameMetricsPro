@@ -1,0 +1,179 @@
+PS C:\Users\Shefqet\Desktop\RealtimeGaming> wsl bash -c "cd /mnt/c/Users/Shefqet/Desktop/RealtimeGaming && ./scripts/post-deploy-check.sh gamemetrics"
+
+════════════════════════════════════════════
+  Cluster Connectivity
+════════════════════════════════════════════
+
+✓ kubectl can reach the cluster
+ℹ Nodes Ready: 5
+
+════════════════════════════════════════════
+  Namespaces
+════════════════════════════════════════════
+
+✓ Namespace exists: argocd
+✓ Namespace exists: kafka
+✓ Namespace exists: monitoring
+✓ Namespace exists: gamemetrics
+
+════════════════════════════════════════════
+  CRDs
+════════════════════════════════════════════
+
+✓ CRD present: kafkas.kafka.strimzi.io
+✓ CRD present: kafkatopics.kafka.strimzi.io
+✓ CRD present: applications.argoproj.io
+✓ CRD present: appprojects.argoproj.io
+✓ CRD present: applicationsets.argoproj.io
+
+════════════════════════════════════════════
+  Core Pods
+════════════════════════════════════════════
+
+✓ Pods healthy in argocd
+✓ Pods healthy in kafka
+✓ Pods healthy in monitoring
+✓ Pods healthy in gamemetrics
+
+════════════════════════════════════════════
+  Kafka (Strimzi)
+════════════════════════════════════════════
+
+NAME                READY   METADATA STATE   WARNINGS
+gamemetrics-kafka   True                     True
+NAME                                                 READY   STATUS    RESTARTS   AGE
+gamemetrics-kafka-broker-0                           1/1     Running   0          52m
+gamemetrics-kafka-controller-1                       1/1     Running   0          4h6m
+gamemetrics-kafka-entity-operator-7f88f6f6b7-trcng   2/2     Running   0          19m
+NAME                        CLUSTER             PARTITIONS   REPLICATION FACTOR   READY
+game.leaderboards           gamemetrics-kafka   1            1                    True
+notifications               gamemetrics-kafka   1            1                    True
+player.events.processed     gamemetrics-kafka   2            1                    True
+player.events.raw           gamemetrics-kafka   2            1                    True
+player.statistics           gamemetrics-kafka   2            1                    True
+recommendations.generated   gamemetrics-kafka   1            1                    True
+system.dlq                  gamemetrics-kafka   1            1                    True
+user.actions                gamemetrics-kafka   2            1                    True
+✓ Kafka resources listed
+
+════════════════════════════════════════════
+  ArgoCD
+════════════════════════════════════════════
+
+NAME                      SYNC STATUS   HEALTH STATUS
+event-ingestion-dev       Unknown       Unknown
+event-ingestion-service   Unknown       Unknown
+gamemetrics-app-of-apps   Unknown       Unknown
+kafka-cluster             Unknown       Unknown
+kafka-dev                 Unknown       Unknown
+monitoring-stack          Unknown       Unknown
+root-app                  Unknown       Unknown
+NAME      AGE
+default   4h26m
+NAME                                               READY   STATUS    RESTARTS   AGE
+argocd-application-controller-0                    1/1     Running   0          119m
+argocd-applicationset-controller-b776d8994-gclwk   1/1     Running   0          119m
+argocd-dex-server-95957787c-9j727                  1/1     Running   0          119m
+argocd-notifications-controller-64964d4df5-mgv58   1/1     Running   0          119m
+argocd-redis-75876db6bf-c2rcw                      1/1     Running   0          119m
+argocd-repo-server-78dd5855d7-q2jdc                1/1     Running   0          119m
+argocd-server-69854449cd-8tw6q                     1/1     Running   0          119m
+✓ ArgoCD status listed
+
+════════════════════════════════════════════
+  Workloads & Services
+════════════════════════════════════════════
+
+NAME                              READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/event-ingestion   2/2     2            2           4h26m
+deployment.apps/minio             1/1     1            1           4h26m
+deployment.apps/qdrant            1/1     1            1           4h26m
+deployment.apps/timescaledb       1/1     1            1           4h26m
+
+NAME                      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)             AGE
+service/event-ingestion   ClusterIP   172.20.34.89     <none>        80/TCP,9090/TCP     4h27m
+service/minio             ClusterIP   172.20.234.125   <none>        9000/TCP,9001/TCP   4h27m
+service/qdrant            ClusterIP   172.20.242.44    <none>        6333/TCP,6334/TCP   4h27m
+service/timescaledb       ClusterIP   172.20.97.242    <none>        5432/TCP            4h27m
+NAME                        REFERENCE                            TARGETS                                                 MINPODS   MAXPODS   REPLICAS   AGE
+event-ingestion-hpa         Deployment/event-ingestion-service   cpu: <unknown>/70%, memory: <unknown>/80% + 1 more...   2         10        0          4h26m
+event-processor-hpa         Deployment/event-processor-service   cpu: <unknown>/70%, memory: <unknown>/80%               2         10        0          4h26m
+recommendation-engine-hpa   Deployment/recommendation-engine     cpu: <unknown>/70%, memory: <unknown>/80%               2         5         0          4h26m
+⚠ Deployments not fully available in gamemetrics:
+event-ingestion   2/2   2     2     4h26m
+minio             1/1   1     1     4h26m
+qdrant            1/1   1     1     4h26m
+timescaledb       1/1   1     1     4h26m
+✓ Service endpoints populated in gamemetrics
+
+════════════════════════════════════════════
+  Observability
+════════════════════════════════════════════
+
+deployment.apps/alertmanager   1/1     1            1           4h26m
+deployment.apps/grafana        1/1     1            1           4h26m
+deployment.apps/loki           1/1     1            1           4h26m
+deployment.apps/prometheus     1/1     1            1           4h26m
+service/alertmanager   ClusterIP   172.20.221.106   <none>        9093/TCP   4h27m
+service/grafana        ClusterIP   172.20.157.66    <none>        3000/TCP   4h27m
+service/loki           ClusterIP   172.20.74.215    <none>        3100/TCP   4h27m
+service/prometheus     ClusterIP   172.20.173.133   <none>        9090/TCP   4h27m
+✓ Monitoring components listed
+
+════════════════════════════════════════════
+  ArgoCD Sync/Health (optional)
+════════════════════════════════════════════
+
+⚠ argocd CLI not installed; skipping
+
+════════════════════════════════════════════
+  Kafka Topics Sanity (counts only)
+════════════════════════════════════════════
+
+NAME                        CLUSTER             PARTITIONS   REPLICATION FACTOR   READY
+game.leaderboards           gamemetrics-kafka   1            1                    True
+notifications               gamemetrics-kafka   1            1                    True
+player.events.processed     gamemetrics-kafka   2            1                    True
+player.events.raw           gamemetrics-kafka   2            1                    True
+player.statistics           gamemetrics-kafka   2            1                    True
+recommendations.generated   gamemetrics-kafka   1            1                    True
+system.dlq                  gamemetrics-kafka   1            1                    True
+user.actions                gamemetrics-kafka   2            1                    True
+
+════════════════════════════════════════════
+  HTTP Smoke (optional, best-effort)
+════════════════════════════════════════════
+
+⚠ Service event-ingestion-service not found; skipping
+⚠ Service analytics-api not found; skipping
+⚠ Service recommendation-engine not found; skipping
+⚠ Service notification-service not found; skipping
+
+════════════════════════════════════════════
+  Recent Events (warning/error)
+════════════════════════════════════════════
+
+NAMESPACE     LAST SEEN   TYPE      REASON                OBJECT                                                   MESSAGE
+kafka         56m         Warning   FailedScheduling      pod/gamemetrics-kafka-entity-operator-654b56659-2pzg7    0/4 nodes are available: 1 Too many pods, 4 Insufficient memory. preemption: 0/4 nodes are available: 4 No preemption victims found for incoming pod.
+kafka         23m         Warning   FailedScheduling      pod/gamemetrics-kafka-broker-0                           0/4 nodes are available: 1 Too many pods, 4 Insufficient memory. preemption: 0/4 nodes are available: 4 No preemption victims found for incoming pod.
+kafka         53m         Warning   FailedScheduling      pod/gamemetrics-kafka-broker-0                           0/4 nodes are available: 1 Too many pods, 4 Insufficient memory. preemption: 0/4 nodes are available: 4 No preemption victims found for incoming pod.    
+kafka         53m         Warning   Unhealthy             pod/gamemetrics-kafka-broker-0                           Readiness probe errored: rpc error: code = Unknown desc = failed to exec in container: container is in CONTAINER_EXITED state
+kafka         52m         Warning   Unhealthy             pod/gamemetrics-kafka-entity-operator-654b56659-2pzg7    Liveness probe failed: HTTP probe failed with statuscode: 500
+kafka         52m         Warning   Unhealthy             pod/gamemetrics-kafka-entity-operator-654b56659-2pzg7    Startup probe failed: Get "http://10.0.2.72:8080/healthy": dial tcp 10.0.2.72:8080: connect: connection refused
+kafka         33m         Warning   Unhealthy             pod/gamemetrics-kafka-entity-operator-654b56659-2pzg7    Readiness probe failed: HTTP probe failed with statuscode: 500
+kafka         28m         Warning   BackOff               pod/gamemetrics-kafka-entity-operator-654b56659-2pzg7    Back-off restarting failed container user-operator in pod gamemetrics-kafka-entity-operator-654b56659-2pzg7_kafka(24426b9e-a652-4ccf-8cbb-dc1e43c701a9)  
+kafka         23m         Warning   BackOff               pod/gamemetrics-kafka-entity-operator-654b56659-2pzg7    Back-off restarting failed container topic-operator in pod gamemetrics-kafka-entity-operator-654b56659-2pzg7_kafka(24426b9e-a652-4ccf-8cbb-dc1e43c701a9) 
+default       21m         Warning   InvalidDiskCapacity   node/ip-10-0-1-71.ec2.internal                           invalid capacity 0 on image filesystem
+kube-system   21m         Warning   NetworkNotReady       pod/ebs-csi-node-4phwr                                   network is not ready: container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized
+kafka         20m         Warning   Unhealthy             pod/gamemetrics-kafka-broker-0                           Readiness probe failed:   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current...
+kafka         20m         Warning   Unhealthy             pod/gamemetrics-kafka-broker-0                           Readiness probe failed:   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current...
+kafka         20m         Warning   Unhealthy             pod/gamemetrics-kafka-entity-operator-7f88f6f6b7-trcng   Readiness probe failed: Get "http://10.0.2.126:8081/ready": dial tcp 10.0.2.126:8081: connect: connection refused
+kafka         20m         Warning   Unhealthy             pod/gamemetrics-kafka-entity-operator-7f88f6f6b7-trcng   Startup probe failed: Get "http://10.0.2.126:8080/healthy": dial tcp 10.0.2.126:8080: connect: connection refused
+kafka         20m         Warning   Unhealthy             pod/gamemetrics-kafka-entity-operator-7f88f6f6b7-trcng   Liveness probe failed: Get "http://10.0.2.126:8081/healthy": dial tcp 10.0.2.126:8081: connect: connection refused
+gamemetrics   3m45s       Warning   FailedGetScale        horizontalpodautoscaler/event-ingestion-hpa              deployments/scale.apps "event-ingestion-service" not found
+gamemetrics   3m45s       Warning   FailedGetScale        horizontalpodautoscaler/event-processor-hpa              deployments/scale.apps "event-processor-service" not found
+gamemetrics   3m45s       Warning   FailedGetScale        horizontalpodautoscaler/recommendation-engine-hpa        deployments/scale.apps "recommendation-engine" not found
+
+════════════════════════════════════════════
+  Summary
+════════════════════════════════════════════

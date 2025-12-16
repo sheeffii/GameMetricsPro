@@ -1,0 +1,87 @@
+# ============================================================================
+# ArgoCD Resource Limits - AWS Free Tier Optimized
+# ============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+data:
+  # Free Tier: Reduce resource usage
+  server.insecure: "true"
+  # Reduce memory usage
+  repo.server.timeout.seconds: "60"
+  # Reduce cache size
+  repo.server.cache.size: "100"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  # Free Tier: Optimize settings
+  timeout.reconciliation: "180s"
+  timeout.hard.reconciliation.limit: "600s"
+  # Reduce refresh frequency
+  application.controller.refresh.timeout: "60s"
+  # Limit concurrent syncs
+  application.controller.sync.parallelism.limit: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+      - name: repo-server
+        resources:
+          requests:
+            cpu: 100m      # Free Tier: Reduced from 250m
+            memory: 128Mi # Free Tier: Reduced from 256Mi
+          limits:
+            cpu: 500m      # Free Tier: Reduced from 1000m
+            memory: 512Mi # Free Tier: Reduced from 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-application-controller
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+      - name: application-controller
+        resources:
+          requests:
+            cpu: 100m      # Free Tier: Reduced from 250m
+            memory: 128Mi # Free Tier: Reduced from 256Mi
+          limits:
+            cpu: 500m      # Free Tier: Reduced from 1000m
+            memory: 512Mi # Free Tier: Reduced from 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+      - name: server
+        resources:
+          requests:
+            cpu: 100m      # Free Tier: Reduced from 250m
+            memory: 128Mi # Free Tier: Reduced from 256Mi
+          limits:
+            cpu: 500m      # Free Tier: Reduced from 1000m
+            memory: 512Mi # Free Tier: Reduced from 1Gi
+
+
+

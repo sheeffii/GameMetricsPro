@@ -1,0 +1,128 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reduce resource requests for dev environment
+patchesStrategicMerge:
+  # Kafka broker - reduce from 512Mi to 256Mi
+  - |-
+    apiVersion: kafka.strimzi.io/v1beta2
+    kind: Kafka
+    metadata:
+      name: gamemetrics-kafka
+    spec:
+      kafka:
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+          limits:
+            memory: 512Mi
+            cpu: 250m
+      zookeeper:
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 50m
+          limits:
+            memory: 256Mi
+            cpu: 100m
+  
+  # ArgoCD server - reduce from 475Mi to 256Mi
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: argocd-server
+      namespace: argocd
+    spec:
+      template:
+        spec:
+          containers:
+          - name: argocd-server
+            resources:
+              requests:
+                memory: 128Mi
+                cpu: 50m
+              limits:
+                memory: 256Mi
+                cpu: 200m
+  
+  # Strimzi operator - reduce from 384Mi to 256Mi
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: strimzi-cluster-operator
+      namespace: kafka
+    spec:
+      template:
+        spec:
+          containers:
+          - name: strimzi-cluster-operator
+            resources:
+              requests:
+                memory: 128Mi
+                cpu: 100m
+              limits:
+                memory: 256Mi
+                cpu: 200m
+  
+  # Image Updater - reduce from 512Mi to 256Mi
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: argocd-image-updater-controller
+      namespace: argocd-image-updater-system
+    spec:
+      template:
+        spec:
+          containers:
+          - name: argocd-image-updater-controller
+            resources:
+              requests:
+                memory: 128Mi
+                cpu: 50m
+              limits:
+                memory: 256Mi
+                cpu: 200m
+  
+  # Event Ingestion - reduce from 256Mi to 128Mi
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: event-ingestion
+      namespace: gamemetrics
+    spec:
+      template:
+        spec:
+          containers:
+          - name: event-ingestion
+            resources:
+              requests:
+                memory: 128Mi
+                cpu: 100m
+              limits:
+                memory: 256Mi
+                cpu: 250m
+  
+  # Notification Service - reduce from 256Mi to 128Mi
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: notification-service
+      namespace: gamemetrics
+    spec:
+      template:
+        spec:
+          containers:
+          - name: notification-service
+            resources:
+              requests:
+                memory: 128Mi
+                cpu: 50m
+              limits:
+                memory: 256Mi
+                cpu: 200m

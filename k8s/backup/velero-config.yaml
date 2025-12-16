@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloud-credentials
+  namespace: velero
+type: Opaque
+stringData:
+  cloud: |
+    [default]
+    aws_access_key_id=<AWS_ACCESS_KEY_ID>
+    aws_secret_access_key=<AWS_SECRET_ACCESS_KEY>
+---
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: gamemetrics-velero-backups
+    prefix: backups
+  config:
+    region: us-east-1
+  credential:
+    name: cloud-credentials
+    key: cloud
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-full-backup
+  namespace: velero
+spec:
+  schedule: 0 2 * * *  # Daily at 2 AM
+  template:
+    includedNamespaces:
+    - gamemetrics
+    - kafka
+    - monitoring
+    storageLocation: default
+    ttl: 720h  # 30 days
+    volumeSnapshotLocations:
+    - default
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: hourly-incremental-backup
+  namespace: velero
+spec:
+  schedule: 0 * * * *  # Every hour
+  template:
+    includedNamespaces:
+    - gamemetrics
+    storageLocation: default
+    ttl: 168h  # 7 days
+    volumeSnapshotLocations:
+    - default
+
+
+

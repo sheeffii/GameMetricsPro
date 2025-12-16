@@ -8,7 +8,7 @@ metadata:
 spec:
   project: gamemetrics
   source:
-    repoURL: https://github.com/sheeffii/RealtimeGaming.git
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
     targetRevision: main
     path: argocd/apps
   destination:

@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-ingestion-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: gamemetrics
+  
+  # Source: Git repository
+  source:
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
+    targetRevision: main
+    path: k8s/services/event-ingestion
+  
+  # Destination: Target Kubernetes cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamemetrics
+  
+  # Sync policy: Automated sync with safeguards
+  syncPolicy:
+    automated:
+      prune: true      # Auto-delete orphaned resources
+      selfHeal: true   # Auto-sync when cluster state diverges from Git
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health check configuration
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore replica count differences (HPA controls this)
+  
+  # Notifications
+  revisionHistoryLimit: 10

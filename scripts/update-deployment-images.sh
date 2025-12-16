@@ -1,4 +1,26 @@
 #!/bin/bash
+#
+# GameMetrics Pro - Deployment Images Update Script
+# 
+# This script updates Kubernetes deployment images with ECR URLs from Terraform outputs.
+# It handles the event-ingestion service deployment image update.
+#
+# ⚠️  NOTE: For complete production deployment, use scripts/production-deploy.sh
+# This script is useful for updating images after manual builds.
+#
+# Usage:
+#   ./scripts/update-deployment-images.sh [region]
+#   Example: ./scripts/update-deployment-images.sh us-east-1
+#
+# Prerequisites:
+#   - Terraform outputs available
+#   - kubectl configured and connected
+#   - Deployment must exist in Kubernetes
+#
+# Environment Variables:
+#   AWS_REGION - AWS region (default: us-east-1)
+#
+
 set -e
 
 REGION=${1:-us-east-1}

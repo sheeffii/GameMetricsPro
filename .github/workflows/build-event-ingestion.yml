@@ -4,20 +4,19 @@ on:
   push:
     branches:
       - main
-      - develop
     paths:
       - 'services/event-ingestion-service/**'
       - '.github/workflows/build-event-ingestion.yml'
   pull_request:
     branches:
       - main
-      - develop
     paths:
       - 'services/event-ingestion-service/**'
 
 permissions:
   id-token: write
   contents: read
+  security-events: write
   packages: write
   actions: read
 
@@ -93,14 +92,23 @@ jobs:
           echo "uri=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Image URI: ${IMAGE_TAG}"
 
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy vulnerability scanner on pushed image
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
           image-ref: ${{ steps.image-uri.outputs.uri }}
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: false
+
+      - name: Upload Trivy results to GitHub Security
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-event-ingestion'
+        continue-on-error: true
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
@@ -115,14 +123,23 @@ jobs:
           # Sign using keyless mode with GitHub OIDC
           cosign sign --yes ${{ steps.image-uri.outputs.uri }}
 
-      - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0
+      - name: Generate SBOM with Syft (local tarball)
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          # Install Syft
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Generate SBOM from local Dockerfile context
+          syft dir:./services/event-ingestion-service -o spdx-json > sbom-event-ingestion.spdx.json || true
+
+      - name: Upload SBOM as artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v3
         with:
-          image: ${{ steps.image-uri.outputs.uri }}
-          format: spdx-json
-          output-file: sbom-event-ingestion.spdx.json
-          upload-artifact: true
-          upload-release-assets: false
+          name: sbom-event-ingestion
+          path: sbom-event-ingestion.spdx.json
+        continue-on-error: true
 
   deploy-to-dev:
     name: Deploy to Development (Auto)

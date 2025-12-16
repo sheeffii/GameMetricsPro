@@ -6,7 +6,7 @@ metadata:
 spec:
   project: gamemetrics
   source:
-    repoURL: https://github.com/sheeffii/RealtimeGaming.git
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
     targetRevision: main
     path: k8s/services/event-ingestion
   destination:
@@ -34,7 +34,7 @@ metadata:
 spec:
   project: gamemetrics
   source:
-    repoURL: https://github.com/sheeffii/RealtimeGaming.git
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
     targetRevision: main
     path: k8s/kafka
   destination:
@@ -61,7 +61,7 @@ metadata:
 spec:
   project: gamemetrics
   source:
-    repoURL: https://github.com/sheeffii/RealtimeGaming.git
+    repoURL: https://github.com/sheeffii/GameMetricsPro.git
     targetRevision: main
     path: monitoring
   destination:

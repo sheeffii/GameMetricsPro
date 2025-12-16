@@ -1,0 +1,61 @@
+name: Test & Quality Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  lint-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install kubeval
+        run: |
+          curl -L https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz | tar xz
+      
+      - name: Validate Kubernetes manifests
+        run: |
+          for f in $(find k8s -name "*.yaml" -o -name "*.yml"); do
+            echo "Validating $f..."
+            ./kubeval "$f" || exit 1
+          done
+  
+  lint-code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Lint YAML
+        uses: adrienverge/yamllint@master
+        with:
+          file_or_dir: 'k8s/ .github/'
+          config: |
+            extends: default
+            rules:
+              line-length: disable
+              comments-indentation: disable
+  
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+      
+      - name: Lint Helm charts
+        run: |
+          for chart in $(find . -name "Chart.yaml" -type f | xargs dirname); do
+            echo "Linting $chart..."
+            helm lint "$chart" || exit 1
+          done
