@@ -14,29 +14,22 @@ spec:
         port: 9092
         type: internal
         tls: false
-      - name: tls
-        port: 9093
-        type: internal
-        tls: true
     config:
-      # Replication settings - AWS FREE TIER OPTIMIZED (1 broker)
-      offsets.topic.replication.factor: 1  # Internal topic replication
+      # Single broker setup - no replication needed
+      offsets.topic.replication.factor: 1
       transaction.state.log.replication.factor: 1
-      transaction.state.log.min.isr: 1  # Allow writes with 1 replica
-      default.replication.factor: 1  # Default for new topics
-      min.insync.replicas: 1  # Free tier: 1 replica must acknowledge
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
       
       # Retention settings
-      log.retention.hours: 168  # 7 days default
-      log.segment.bytes: 1073741824  # 1GB segments
+      log.retention.hours: 168
+      log.segment.bytes: 1073741824
       log.retention.check.interval.ms: 300000
       
-      # Auto-create topics - DISABLED (production requirement)
-      # Topics must be created via KafkaTopic CRDs
-      # This prevents accidental topic creation
+      # Auto-create disabled
       auto.create.topics.enable: false
 
-  # Entity Operator manages topics and users via Kubernetes CRDs
   entityOperator:
     topicOperator:
       resources:
@@ -54,3 +47,36 @@ spec:
         limits:
           memory: 256Mi
           cpu: 300m
+
+  # KRaft controllers (no separate controller nodes, embedded in brokers)
+  kraftControllers:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+
+---
+# KafkaBrokerPool - single broker with both broker and controller roles
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: brokers
+spec:
+  replicas: 1
+  roles:
+    - broker
+    - controller
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 200m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+  storage:
+    type: ephemeral

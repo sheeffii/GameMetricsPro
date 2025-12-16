@@ -17,11 +17,9 @@ SLEEP_AFTER_PRODUCE=${SLEEP_AFTER_PRODUCE:-12}
 BOOTSTRAP=$(kubectl get secret "$KAFKA_SECRET" -n "$APP_NAMESPACE" -o jsonpath='{.data.bootstrap-servers}' | base64 -d)
 DB_PASSWORD=$(kubectl get secret db-credentials -n "$APP_NAMESPACE" -o go-template='{{.data.password | base64decode}}')
 
-# Prefer public LB host if present; else use internal ClusterIP DNS
-DB_HOST=$(kubectl get svc "$DB_PUBLIC_SVC" -n "$APP_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
-if [ -z "$DB_HOST" ]; then
-  DB_HOST="$DB_INTERNAL_HOST"
-fi
+# Use in-cluster TimescaleDB service directly
+DB_HOST="timescaledb"
+DB_PORT="5432"
 
 # Generate a unique smoke test ID
 if command -v uuidgen >/dev/null 2>&1; then
