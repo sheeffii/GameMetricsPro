@@ -6,5 +6,4 @@ resources:
   - application-kafka-dev.yaml
   - application-event-ingestion-prod.yaml
   - application-event-ingestion-dev.yaml
-  - application-notification-service-dev.yaml
   - application-event-consumer-logger-dev.yaml
