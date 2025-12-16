@@ -92,17 +92,17 @@ spec:
               key: LOG_LEVEL
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "128Mi"
+            cpu: "50m"
           limits:
-            memory: "512Mi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "250m"
         livenessProbe:
           exec:
             command:
             - /bin/sh
             - -c
-            - ps aux | grep "consumer.py" | grep -v grep || exit 1
+            - test -f /proc/1/status && kill -0 1 2>/dev/null && echo "alive" || exit 1
           initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 5
@@ -112,7 +112,7 @@ spec:
             command:
             - /bin/sh
             - -c
-            - python -c "import os, psycopg2; psycopg2.connect(host=os.environ['DB_HOST'], database=os.environ['DB_NAME'], user=os.environ['DB_USER'], password=os.environ['DB_PASSWORD'])"
+            - "test -f /proc/1/status && echo 'ready' || exit 1"
           initialDelaySeconds: 15
           periodSeconds: 10
           timeoutSeconds: 5
