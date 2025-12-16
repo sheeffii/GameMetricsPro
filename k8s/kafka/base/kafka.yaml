@@ -66,6 +66,8 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaNodePool
 metadata:
   name: brokers
+  labels:
+    strimzi.io/cluster: gamemetrics-kafka
 spec:
   replicas: 1
   roles:
